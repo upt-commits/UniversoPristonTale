@@ -1,0 +1,26 @@
+﻿# Variáveis e segredos
+.env
+.env.*
+!.env.example
+
+# Dependências e builds
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# Logs e testes
+*.log
+logs/
+coverage/
+
+# Editores e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Backups
+*.bak
+*.backup
+*.backup_*
