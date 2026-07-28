@@ -1,0 +1,19 @@
+# Node dependencies
+node_modules/
+.next/
+dist/
+build/
+bin/
+obj/
+
+# Environment configs
+.env
+.env.local
+.env.*.local
+
+# Logs and system files
+*.log
+.pnpm-debug.log
+.turbo/
+upt-discovery-result.json
+upt-admin/tools/discovery/discovery-results.json
