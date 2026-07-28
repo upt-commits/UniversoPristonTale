@@ -1,20 +1,68 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+
+interface CaptchaConfig {
+  provider: string;
+  siteKey: string | null;
+  required: boolean;
+  registrationEnabled: boolean;
+}
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formStartTime] = useState(Date.now());
+  const [captchaConfig, setCaptchaConfig] = useState<CaptchaConfig | null>(null);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const captchaContainerRef = useRef<HTMLDivElement>(null);
 
-  // Form states
   const [formData, setFormData] = useState({
     username: '', email: '', password: '', confirmPassword: '',
     fullName: '', birthDate: '', cpf: '',
     cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: 'SP',
-    termsAccepted: false, guardianName: '', guardianCPF: '', marketingAccepted: false
+    termsAccepted: false, guardianName: '', guardianCPF: '', marketingAccepted: false,
+    website_url: ''
   });
+
+  useEffect(() => {
+    fetch('/api/public/captcha-config')
+      .then(r => r.json())
+      .then(data => setCaptchaConfig(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!captchaConfig?.siteKey || step !== 4) return;
+
+    const scriptId = 'captcha-script';
+    if (document.getElementById(scriptId)) return;
+
+    let src = '';
+    if (captchaConfig.provider === 'turnstile') {
+      src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+    } else if (captchaConfig.provider === 'hcaptcha') {
+      src = 'https://js.hcaptcha.com/1/api.js?render=explicit';
+    }
+
+    if (!src) return;
+
+    const script = document.createElement('script');
+    script.id = scriptId;
+    script.src = src;
+    script.async = true;
+    script.onload = () => {
+      if (captchaContainerRef.current && captchaConfig.provider === 'turnstile' && (window as any).turnstile) {
+        (window as any).turnstile.render(captchaContainerRef.current, {
+          sitekey: captchaConfig.siteKey,
+          callback: (token: string) => setCaptchaToken(token),
+        });
+      }
+    };
+    document.head.appendChild(script);
+  }, [captchaConfig, step]);
 
   const calculateAge = (birthDateStr: string): number => {
     const birthDate = new Date(birthDateStr);
@@ -48,8 +96,8 @@ export default function RegisterPage() {
           estado: address.estado || prev.estado
         }));
       }
-    } catch (e) {
-      // Ignorar e preencher manualmente
+    } catch {
+      // fill manually
     }
   };
 
@@ -81,41 +129,56 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
     if (!formData.termsAccepted) {
       setError('Voce precisa aceitar os termos de uso para prosseguir.');
       return;
     }
 
+    if (captchaConfig?.required && !captchaToken) {
+      setError('Complete o captcha antes de prosseguir.');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        credentials: 'include',
+        body: JSON.stringify({
+          ...formData,
+          captchaToken,
+          formStartTime
+        })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccess(true);
-        setError('');
+        if (data.otpRequired) {
+          window.location.href = `/verificar-email?accountId=${data.accountId}&email=${encodeURIComponent(data.emailMasked)}`;
+        } else {
+          window.location.href = '/entrar';
+        }
       } else {
         setError(data.error?.message || 'Falha ao realizar cadastro.');
+        setSubmitting(false);
       }
-    } catch (err) {
+    } catch {
       setError('Falha ao comunicar com o servidor da API.');
+      setSubmitting(false);
     }
   };
 
-  if (success) {
+  if (captchaConfig && !captchaConfig.registrationEnabled) {
     return (
       <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-zinc-900 border border-emerald-500/30 rounded-lg p-8 shadow-xl text-center">
-          <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto mb-6">
-            <span className="text-emerald-400 text-2xl">✓</span>
-          </div>
-          <h2 className="text-2xl font-black text-emerald-400 mb-4 tracking-wider">CONTA CRIADA!</h2>
-          <p className="text-zinc-400 mb-8 leading-relaxed">Sua conta do portal e do jogo foi registrada e vinculada com sucesso. Voce ja pode entrar no painel e no Game.exe.</p>
-          <Link href="/entrar" className="block w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-emerald-100 rounded font-bold uppercase tracking-wider text-sm transition">
-            Acessar Painel
-          </Link>
+        <div className="max-w-md w-full bg-zinc-900 border border-amber-500/30 rounded-lg p-8 shadow-xl text-center">
+          <h2 className="text-xl font-black text-amber-400 mb-4 tracking-wider uppercase">Cadastro Indisponivel</h2>
+          <p className="text-zinc-400 mb-6 leading-relaxed">O cadastro esta temporariamente em manutencao. Tente novamente mais tarde.</p>
+          <Link href="/" className="text-emerald-400 hover:text-emerald-300 text-sm font-bold uppercase tracking-wider">Voltar ao Inicio</Link>
         </div>
       </div>
     );
@@ -138,10 +201,15 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded text-sm font-semibold">
+          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded text-sm font-semibold" role="alert" aria-live="assertive">
             {error}
           </div>
         )}
+
+        {/* Honeypot */}
+        <div style={{ position: 'absolute', left: '-9999px' }} aria-hidden="true">
+          <input type="text" name="website_url" value={formData.website_url} onChange={handleChange} tabIndex={-1} autoComplete="off" />
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {step === 1 && (
@@ -266,6 +334,10 @@ export default function RegisterPage() {
                   <span>Aceito receber e-mails informativos, atualizacoes e novidades do servidor (Opcional).</span>
                 </label>
               </div>
+
+              {captchaConfig?.siteKey && (
+                <div ref={captchaContainerRef} className="flex justify-center" />
+              )}
             </div>
           )}
 
@@ -278,7 +350,9 @@ export default function RegisterPage() {
             {step < 4 ? (
               <button type="button" onClick={nextStep} className="px-6 py-3 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-100 font-bold uppercase tracking-wider text-xs rounded transition">Avancar</button>
             ) : (
-              <button type="submit" className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-wider text-xs rounded transition shadow-lg shadow-emerald-500/10">Finalizar Cadastro</button>
+              <button type="submit" disabled={submitting} className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-wider text-xs rounded transition shadow-lg shadow-emerald-500/10 disabled:opacity-50">
+                {submitting ? 'Cadastrando...' : 'Finalizar Cadastro'}
+              </button>
             )}
           </div>
         </form>

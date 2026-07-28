@@ -2,68 +2,87 @@ import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
-import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
+import { config, validateProductionConfig } from './config';
 import apiRoutes from './routes';
+import { isSmtpConfigured, verifySmtpConnection } from './services/email';
 
-dotenv.config();
+validateProductionConfig();
 
 const app = express();
-const port = process.env.PORT || 3001;
 
-// Helmet para cabeçalhos HTTP seguros
+const trustProxyValue = config.trustProxy;
+if (/^\d+$/.test(trustProxyValue)) {
+    app.set('trust proxy', parseInt(trustProxyValue, 10));
+} else {
+    app.set('trust proxy', trustProxyValue);
+}
+
 app.use(helmet());
 
-// CORS restrito ao domínio do portal oficial
 const allowedOrigins = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'https://universopt.com.br',
-  'https://www.universopt.com.br'
+    'https://universopt.com.br',
+    'https://www.universopt.com.br'
 ];
+if (!config.isProduction) {
+    allowedOrigins.push('http://localhost:3000', 'http://127.0.0.1:3000');
+}
+
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Acesso bloqueado por diretiva CORS do UPT'));
-    }
-  },
-  credentials: true
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(new Error('Acesso bloqueado por diretiva CORS do UPT'));
+        }
+    },
+    credentials: true
 }));
 
-app.use(express.json({ limit: '10kb' })); // Proteção contra payloads excessivos
+app.use(cookieParser());
 
-// Rate limiter geral
+app.use(express.json({ limit: '10kb' }));
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // máximo de 100 requisições por IP
-  message: { error: { code: 'UPT-RATE-001', message: 'Muitas requisicoes vindas deste IP. Tente novamente mais tarde.' } }
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    keyGenerator: (req) => req.ip || '127.0.0.1',
+    message: { error: { code: 'UPT-RATE-001', message: 'Muitas requisicoes vindas deste IP. Tente novamente mais tarde.' } }
 });
 app.use(limiter);
 
-// Rotas da API
 app.use('/api', apiRoutes);
 
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'UPT API is secure and running!' });
+app.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'UPT API is secure and running!' });
 });
 
-app.get('/api/health', (req: Request, res: Response) => {
-  res.json({ status: 'UPT API is secure and running!' });
+app.get('/api/health', (_req: Request, res: Response) => {
+    res.json({ status: 'UPT API is secure and running!' });
 });
 
-// Tratamento de erros global para ocultar detalhes técnicos em produção
-app.use((err: any, req: Request, res: Response, next: any) => {
-  console.error('[UPT-ERROR-GLOBAL]:', err.message);
-  res.status(500).json({
-    error: {
-      code: 'UPT-SYS-500',
-      message: 'Ocorreu um erro interno de processamento no servidor. Tente novamente.',
-      correlationId: req.headers['x-correlation-id'] || 'sys-error'
+app.use((err: any, _req: Request, res: Response, _next: any) => {
+    console.error('[UPT-ERROR-GLOBAL]:', err.message);
+    res.status(500).json({
+        error: {
+            code: 'UPT-SYS-500',
+            message: 'Ocorreu um erro interno de processamento no servidor. Tente novamente.'
+        }
+    });
+});
+
+app.listen(config.port, config.host, async () => {
+    console.log(`[UPT-API]: Servidor seguro rodando na porta ${config.port}`);
+    console.log(`[UPT-API]: APP_ENV=${config.appEnv}`);
+    console.log(`[UPT-API]: Cookie Secure=${config.cookie.secure}, SameSite=${config.cookie.sameSite}`);
+    console.log(`[UPT-API]: Trust Proxy=${trustProxyValue}`);
+    console.log(`[UPT-API]: Registration Enabled=${config.registration.enabled}`);
+    console.log(`[UPT-API]: OTP Enabled=${config.otp.enabled}`);
+    console.log(`[UPT-API]: CAPTCHA Required=${config.captcha.required}`);
+    console.log(`[UPT-API]: SMTP Configured=${isSmtpConfigured()}`);
+
+    if (isSmtpConfigured()) {
+        const smtpOk = await verifySmtpConnection();
+        console.log(`[UPT-API]: SMTP Connection Verified=${smtpOk}`);
     }
-  });
-});
-
-app.listen(port, () => {
-  console.log(`[UPT-API]: Servidor seguro rodando na porta ${port}`);
 });

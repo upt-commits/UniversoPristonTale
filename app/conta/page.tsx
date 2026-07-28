@@ -10,17 +10,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchMe = async () => {
-      const token = localStorage.getItem('upt_session_token');
-      if (!token) {
-        setError('Sessao nao encontrada. Por favor, faca login.');
-        setLoading(false);
-        return;
-      }
-
       try {
         const res = await fetch('/api/player/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include'
         });
+        if (res.status === 401) {
+          setError('Sessao expirada. Por favor, faca login novamente.');
+          setLoading(false);
+          return;
+        }
         const result = await res.json();
         if (res.ok) {
           setData(result);
@@ -37,8 +35,15 @@ export default function DashboardPage() {
     fetchMe();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('upt_session_token');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // proceed to redirect regardless
+    }
     window.location.href = '/entrar';
   };
 
@@ -77,7 +82,6 @@ export default function DashboardPage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Dados da Conta */}
           <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Minha Conta</h2>
             <div className="space-y-2 text-sm">
@@ -87,7 +91,6 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Dados Pessoais Mascarados */}
           <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Dados Pessoais</h2>
             {data?.profile ? (
@@ -101,7 +104,6 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* Controles de Privacidade */}
           <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Seguranca & LGPD</h2>
             <div className="space-y-2 text-xs text-zinc-400">
@@ -112,7 +114,6 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        {/* Personagens Reais do Jogo */}
         <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
           <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Personagens no Servidor UPT</h2>
           {data?.characters && data.characters.length > 0 ? (
@@ -121,7 +122,7 @@ export default function DashboardPage() {
                 <div key={char.Name} className="p-4 bg-black border border-zinc-800 rounded flex justify-between items-center">
                   <div>
                     <strong className="text-emerald-400 block text-base font-bold">{char.Name}</strong>
-                    <span className="text-zinc-500 text-xs uppercase font-semibold">{char.Class || 'Sem Classe'}</span>
+                    <span className="text-zinc-500 text-xs uppercase font-semibold">{char.Class || 'Classe desconhecida'}</span>
                   </div>
                   <div className="text-right">
                     <span className="text-xs text-zinc-400 block">Nivel</span>
