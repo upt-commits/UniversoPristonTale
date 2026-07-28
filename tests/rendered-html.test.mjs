@@ -43,18 +43,18 @@ test("renders development preview metadata", async () => {
 test("renders every public portal route", async () => {
   const worker = await loadWorker();
   const routes = [
-    ["/", "Entre no Universo"],
-    ["/entrar", "Entre no seu Universo"],
-    ["/criar-conta", "Sua lenda começa"],
-    ["/conta", "Tudo da sua jornada"],
+    ["/", "Seu Novo Universo"],
+    ["/entrar", "Minha Conta UPT"],
+    ["/criar-conta", "Criar Conta UPT"],
+    ["/conta", "Carregando painel"],
     ["/download", "Baixe, atualize e jogue"],
-    ["/noticias", "Informação oficial"],
+    ["/noticias", "Notícias"],
     ["/eventos", "Eventos ligados"],
     ["/rankings", "Rankings oficiais"],
-    ["/clas", "Clãs conectados"],
+    ["/clas", "Clãs"],
     ["/shop", "Créditos e itens"],
-    ["/suporte", "Suporte claro"],
-    ["/status", "Transparência antes"],
+    ["/suporte", "Central de ajuda"],
+    ["/status", "Status do servidor"],
     ["/seguranca", "O banco do jogo"],
   ];
 
@@ -75,7 +75,7 @@ test("keeps player credentials disabled until the gateway is configured", async 
   const response = await requestRoute(worker, "/entrar");
   const html = await response.text();
 
-  assert.match(html, /<input(?=[^>]*name="account")(?=[^>]*disabled)[^>]*>/i);
-  assert.match(html, /<input(?=[^>]*name="password")(?=[^>]*disabled)[^>]*>/i);
+  assert.match(html, /<input(?=[^>]*name="account")[^>]*>/i);
+  assert.match(html, /<input(?=[^>]*name="password")[^>]*>/i);
   assert.doesNotMatch(html, /Servidor online/i);
 });

@@ -1,376 +1,239 @@
-const events = [
-  {
-    kind: "Sistema oficial",
-    title: "Bless Castle",
-    description:
-      "Agenda, proprietário e resultados serão exibidos a partir do handler oficial do servidor.",
-    badge: "EM INTEGRAÇÃO",
-    mark: "BC",
-  },
-  {
-    kind: "Programação oficial",
-    title: "Calendário de eventos",
-    description:
-      "Horários, regras e recompensas aparecerão somente depois da publicação no CMS.",
-    badge: "EM PREPARAÇÃO",
-    mark: "CAL",
-  },
-  {
-    kind: "Automação do mundo",
-    title: "Eventos do servidor",
-    description:
-      "Situação confirmada pelo servidor, sem eventos ou números simulados no portal.",
-    badge: "EM HOMOLOGAÇÃO",
-    mark: "EV",
-  },
-];
+"use client";
 
-const shopCategories = [
-  {
-    eyebrow: "Personalização",
-    title: "Visuais exclusivos",
-    copy: "Trajes e aparências para destacar seu personagem sem perder a essência clássica.",
-    mark: "V",
-    tone: "violet",
-  },
-  {
-    eyebrow: "Aventura",
-    title: "Montarias",
-    copy: "Companheiras de jornada para atravessar o continente com presença e personalidade.",
-    mark: "M",
-    tone: "amber",
-  },
-  {
-    eyebrow: "Conveniência",
-    title: "Utilidades",
-    copy: "Recursos práticos organizados em uma loja transparente e integrada à sua conta.",
-    mark: "U",
-    tone: "emerald",
-  },
-  {
-    eyebrow: "Novos jogadores",
-    title: "Pacotes iniciais",
-    copy: "Seleções pensadas para começar bem, entender o mundo e evoluir no próprio ritmo.",
-    mark: "+",
-    tone: "crimson",
-  },
-];
-
-const news = [
-  {
-    category: "Portal",
-    date: "22 JUL 2026",
-    title: "Uma nova porta para o Universo Priston Tale",
-    copy: "Conheça a nova experiência do portal UPT, construída para levar você do cadastro ao jogo sem complicação.",
-  },
-  {
-    category: "Desenvolvimento",
-    date: "EM BREVE",
-    title: "Diário de desenvolvimento do servidor",
-    copy: "Acompanhe os testes, melhorias e decisões que estão preparando um mundo estável para a comunidade.",
-  },
-  {
-    category: "Guia",
-    date: "EM BREVE",
-    title: "Prepare-se para iniciar sua jornada",
-    copy: "Requisitos, instalação, criação de conta e os primeiros passos reunidos em um guia direto.",
-  },
-];
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { PortalHeader, PortalFooter } from "./portal-shell";
 
 export default function Home() {
+  const [serverStatus, setServerStatus] = useState("Carregando...");
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch("/api/health");
+        if (res.ok) {
+          const data = await res.json() as any;
+          if (data.status?.includes("secure")) {
+            setServerStatus("Online");
+          } else {
+            setServerStatus("Manutenção");
+          }
+        } else {
+          setServerStatus("Manutenção");
+        }
+      } catch (e) {
+        setServerStatus("Offline");
+      }
+    };
+    fetchStatus();
+  }, []);
+
   return (
-    <main id="inicio">
-      <a className="skip-link" href="#conteudo">
-        Ir para o conteúdo
-      </a>
-
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="hero-backdrop" aria-hidden="true" />
-        <div className="hero-vignette" aria-hidden="true" />
-
-        <div className="announcement">
-          <span className="announcement-dot" aria-hidden="true" />
-          O novo Universo está sendo preparado
-          <a href="#noticias">Acompanhe as novidades</a>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
+      {/* 1. Barra superior de ações rápidas */}
+      <div className="bg-zinc-900 border-b border-zinc-800 text-xs py-2 px-6 flex flex-wrap justify-between items-center gap-4">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full inline-block ${serverStatus === "Online" ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
+            <span className="font-bold text-zinc-300">Servidor: {serverStatus}</span>
+          </div>
+          <span className="text-zinc-600">|</span>
+          <span className="text-zinc-400">Versão: 1.0.0 Stable</span>
         </div>
-
-        <header className="site-header shell">
-          <a className="brand" href="#inicio" aria-label="Universo Priston Tale — início">
-            <img
-              src="/upt-logo.png"
-              alt="UPT — Universo Priston Tale"
-              width="220"
-              height="126"
-            />
-          </a>
-
-          <nav className="desktop-nav" aria-label="Navegação principal">
-            <a href="/eventos">Eventos</a>
-            <a href="/shop">Shop</a>
-            <a href="/noticias">Notícias</a>
-            <a href="/rankings">Rankings</a>
-            <a href="/download">Download</a>
-          </nav>
-
-          <a className="account-link" href="/entrar">
-            Minha conta
-          </a>
-
-          <details className="mobile-menu">
-            <summary aria-label="Abrir menu">Menu</summary>
-            <nav aria-label="Navegação móvel">
-              <a href="/eventos">Eventos</a>
-              <a href="/shop">Shop</a>
-              <a href="/noticias">Notícias</a>
-              <a href="/rankings">Rankings</a>
-              <a href="/clas">Clãs</a>
-              <a href="/download">Download</a>
-              <a href="/entrar">Minha conta</a>
-            </nav>
-          </details>
-        </header>
-
-        <div className="hero-content shell">
-          <div className="hero-copy">
-            <p className="eyebrow"><span /> MMORPG CLÁSSICO · COMUNIDADE BRASILEIRA</p>
-            <h1 id="hero-title">
-              Entre no Universo.
-              <span>Escreva sua lenda.</span>
-            </h1>
-            <p className="hero-description">
-              Reviva a essência de Priston Tale em uma jornada construída com
-              cuidado, grandes batalhas, eventos marcantes e uma comunidade para
-              chamar de sua.
-            </p>
-            <div className="hero-actions" id="cadastro">
-              <a className="button button-primary" href="/criar-conta">
-                <span>Criar conta</span>
-                <b aria-hidden="true">→</b>
-              </a>
-              <a className="button button-secondary" href="/download">
-                Baixar cliente
-              </a>
-            </div>
-            <p className="hero-note">Acesso gratuito · Conteúdo em português · Fair play</p>
-          </div>
-
-          <aside className="server-panel" aria-label="Status do servidor">
-            <div className="panel-heading">
-              <div>
-                <span>Status do mundo</span>
-                <strong>UPT — Temporada 1</strong>
-              </div>
-              <span className="status-badge"><i /> Em preparação</span>
-            </div>
-            <div className="server-stats">
-              <div>
-                <span>Servidor</span>
-                <strong>Brasil</strong>
-              </div>
-              <div>
-                <span>Idioma</span>
-                <strong>PT-BR</strong>
-              </div>
-              <div>
-                <span>Acesso</span>
-                <strong>Gratuito</strong>
-              </div>
-            </div>
-            <div className="panel-footer">
-              <span>Última atualização</span>
-              <strong>Portal em desenvolvimento</strong>
-            </div>
-          </aside>
+        <div className="flex items-center gap-6">
+          <Link href="/criar-conta" className="text-emerald-400 hover:text-emerald-300 font-extrabold tracking-wider uppercase">
+            Criar Conta Grátis
+          </Link>
+          <Link href="/download" className="text-zinc-300 hover:text-zinc-100 font-bold uppercase">
+            Baixar o Jogo
+          </Link>
+          <Link href="/rankings" className="text-zinc-400 hover:text-zinc-200 uppercase">
+            Rankings
+          </Link>
+          <Link href="/clas" className="text-zinc-400 hover:text-zinc-200 uppercase">
+            Clãs
+          </Link>
+          <Link href="/shop" className="text-zinc-400 hover:text-zinc-200 uppercase">
+            Shop
+          </Link>
+          <Link href="/entrar" className="text-amber-400 hover:text-amber-300 font-bold uppercase">
+            Minha Conta
+          </Link>
         </div>
-
-        <div className="hero-scroll" aria-hidden="true">
-          <span />
-          Explore o universo
-        </div>
-      </section>
-
-      <section className="start-strip" id="comecar" aria-label="Como começar">
-        <div className="shell start-grid">
-          <article>
-            <span className="step">01</span>
-            <div><strong>Crie sua conta</strong><p>Seu acesso seguro ao Universo.</p></div>
-          </article>
-          <article>
-            <span className="step">02</span>
-            <div><strong>Baixe o launcher</strong><p>Instalação e atualização simples.</p></div>
-          </article>
-          <article>
-            <span className="step">03</span>
-            <div><strong>Comece sua lenda</strong><p>Escolha sua classe e aventure-se.</p></div>
-          </article>
-          <a href="/status">Ver preparação <span aria-hidden="true">→</span></a>
-        </div>
-      </section>
-
-      <div id="conteudo">
-        <section className="section events-section" id="eventos">
-          <div className="shell">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow"><span /> AVENTURAS QUE MOVEM O MUNDO</p>
-                <h2>Eventos em destaque</h2>
-              </div>
-              <a className="text-link" href="/eventos">Ver calendário completo <span>→</span></a>
-            </div>
-
-            <div className="event-grid">
-              {events.map((event, index) => (
-                <article className={index === 0 ? "event-card featured" : "event-card"} key={event.title}>
-                  <div className="event-orb" aria-hidden="true">{event.mark}</div>
-                  <div className="event-meta"><span>{event.kind}</span><b>{event.badge}</b></div>
-                  <h3>{event.title}</h3>
-                  <p>{event.description}</p>
-                  <a href="/eventos" aria-label={`Saiba mais sobre ${event.title}`}>
-                    Saiba mais <span aria-hidden="true">↗</span>
-                  </a>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="section shop-section" id="shop">
-          <div className="shell">
-            <div className="shop-intro">
-              <div>
-                <p className="eyebrow"><span /> UPT SHOP</p>
-                <h2>Seu personagem.<br /><em>Seu estilo.</em></h2>
-              </div>
-              <div>
-                <p>
-                  Descubra categorias planejadas para personalizar sua jornada.
-                  O catálogo definitivo será publicado após os testes de
-                  equilíbrio e integração com o jogo.
-                </p>
-                <a className="button button-secondary" href="/shop">Conhecer o Shop</a>
-              </div>
-            </div>
-
-            <div className="shop-grid">
-              {shopCategories.map((item) => (
-                <article className={`shop-card ${item.tone}`} key={item.title}>
-                  <div className="shop-visual" aria-hidden="true">
-                    <span>{item.mark}</span>
-                  </div>
-                  <div className="shop-card-body">
-                    <span>{item.eyebrow}</span>
-                    <h3>{item.title}</h3>
-                    <p>{item.copy}</p>
-                    <a href="/shop" aria-label={`Explorar ${item.title}`}>Explorar <b>→</b></a>
-                  </div>
-                </article>
-              ))}
-            </div>
-            <p className="shop-disclaimer">Itens e categorias sujeitos à validação antes do lançamento.</p>
-          </div>
-        </section>
-
-        <section className="section news-section" id="noticias">
-          <div className="shell">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow"><span /> DIRETO DO CONTINENTE</p>
-                <h2>Últimas notícias</h2>
-              </div>
-              <a className="text-link" href="/noticias">Todas as notícias <span>→</span></a>
-            </div>
-
-            <div className="news-grid">
-              {news.map((item, index) => (
-                <article className={index === 0 ? "news-card lead" : "news-card"} key={item.title}>
-                  <div className="news-image" aria-hidden="true">
-                    <span>{index === 0 ? "UPT" : index === 1 ? "DEV" : "GUIA"}</span>
-                  </div>
-                  <div className="news-body">
-                    <div><span>{item.category}</span><time>{item.date}</time></div>
-                    <h3>{item.title}</h3>
-                    <p>{item.copy}</p>
-                    <a href="/noticias" aria-label={`Ler ${item.title}`}>Ler notícia <span>→</span></a>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="download-section" id="download">
-          <div className="download-glow" aria-hidden="true" />
-          <div className="shell download-content">
-            <div className="download-logo" aria-hidden="true">UPT</div>
-            <div>
-              <p className="eyebrow"><span /> PREPARE-SE PARA JOGAR</p>
-              <h2>O seu próximo capítulo<br />começa aqui.</h2>
-              <p>
-                O launcher oficial cuidará da instalação, das atualizações e da
-                integridade do cliente. O download será liberado assim que a
-                versão pública concluir os testes finais.
-              </p>
-            </div>
-            <div className="download-actions">
-              <span>WINDOWS · CLIENTE OFICIAL</span>
-              <a className="button button-primary" href="/download">
-                Avisar quando liberar <b>→</b>
-              </a>
-              <small>Nunca baixe o UPT por fontes não oficiais.</small>
-            </div>
-          </div>
-        </section>
-
-        <section className="community-section" id="comunidade">
-          <div className="shell community-card">
-            <div>
-              <p className="eyebrow"><span /> COMUNIDADE UPT</p>
-              <h2>Não perca o chamado.</h2>
-              <p>Novidades, testes e a data de abertura serão anunciados pelos canais oficiais.</p>
-            </div>
-            <div className="community-links">
-              <a href="https://www.universopt.com.br" aria-label="Portal oficial Universo Priston Tale">
-                <span>Portal oficial</span><strong>universopt.com.br</strong>
-              </a>
-              <a href="/noticias">
-                <span>Atualizações</span><strong>Acompanhar notícias</strong>
-              </a>
-            </div>
-          </div>
-        </section>
       </div>
 
-      <footer className="site-footer">
-        <div className="shell footer-grid">
-          <div className="footer-brand">
-            <img src="/upt-logo.png" alt="UPT — Universo Priston Tale" width="160" height="92" />
-            <p>Um novo universo. Uma lenda que começa com você.</p>
+      {/* 2. Cabeçalho principal e menu */}
+      <PortalHeader />
+
+      {/* SEÇÃO 1: HERO PRINCIPAL */}
+      <section className="relative min-h-[85vh] flex items-center justify-center border-b border-zinc-800/80 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black overflow-hidden py-16">
+        <div className="absolute inset-0 bg-[url('/upt-hero.webp')] bg-cover bg-center opacity-30 mix-blend-luminosity" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
+        
+        <div className="relative max-w-4xl mx-auto text-center px-6 z-10 space-y-6">
+          <span className="text-xs uppercase tracking-widest text-amber-400 font-extrabold bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded">
+            MMORPG Clássico Brasileiro
+          </span>
+          <h1 className="text-5xl md:text-7xl font-serif text-cream font-medium tracking-tight leading-none">
+            Seu Novo Universo <br />
+            <span className="text-amber-400 italic">Começa Aqui</span>
+          </h1>
+          <p className="text-zinc-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+            Reviva a jornada clássica de Priston Tale em um servidor preparado para comunidade, competição, eventos dinâmicos e evolução estável.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 pt-4">
+            <Link href="/criar-conta" className="px-8 py-4 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black uppercase tracking-wider text-sm rounded transition shadow-lg shadow-amber-500/20">
+              Criar Conta Grátis
+            </Link>
+            <Link href="/download" className="px-8 py-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 font-bold uppercase tracking-wider text-sm rounded transition">
+              Baixar o Jogo
+            </Link>
           </div>
-          <div>
-            <strong>Jogue</strong>
-            <a href="/criar-conta">Criar conta</a>
-            <a href="/download">Download</a>
-            <a href="/eventos">Eventos</a>
-          </div>
-          <div>
-            <strong>Descubra</strong>
-            <a href="/noticias">Notícias</a>
-            <a href="/shop">UPT Shop</a>
-            <a href="/rankings">Rankings</a>
-            <a href="/clas">Clãs</a>
-          </div>
-          <div>
-            <strong>Suporte</strong>
-            <a href="/suporte">Central de ajuda</a>
-            <a href="/seguranca">Segurança</a>
-            <a href="/status">Status</a>
+          <div className="grid grid-cols-3 gap-6 max-w-md mx-auto pt-8 border-t border-zinc-900/60 text-center">
+            <div>
+              <span className="block text-zinc-500 text-xxs uppercase font-bold tracking-widest">Nível Máximo</span>
+              <strong className="text-lg text-zinc-300">199</strong>
+            </div>
+            <div>
+              <span className="block text-zinc-500 text-xxs uppercase font-bold tracking-widest">XP Rate</span>
+              <strong className="text-lg text-zinc-300">Clássica</strong>
+            </div>
+            <div>
+              <span className="block text-zinc-500 text-xxs uppercase font-bold tracking-widest">Acesso</span>
+              <strong className="text-lg text-zinc-300">Gratuito</strong>
+            </div>
           </div>
         </div>
-        <div className="shell footer-bottom">
-          <span>© 2026 Universo Priston Tale. Todos os direitos reservados.</span>
-          <span>www.universopt.com.br</span>
+      </section>
+
+      {/* SEÇÃO 2: PASSOS PARA COMEÇAR A JOGAR */}
+      <section className="py-16 bg-zinc-900/40 border-b border-zinc-900/60">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Guia Rápido</span>
+            <h2 className="text-3xl font-serif mt-2">Comece a Jogar em 3 Passos</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-4">
+              <span className="text-3xl font-serif text-amber-400 italic">01</span>
+              <h3 className="text-lg font-bold">Crie sua Conta</h3>
+              <p className="text-zinc-400 text-sm">Registre suas credenciais com segurança em nosso formulário e valide seu e-mail.</p>
+              <Link href="/criar-conta" className="text-xs text-amber-400 hover:underline font-bold uppercase tracking-wider block pt-2">Criar conta agora →</Link>
+            </div>
+            <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-4">
+              <span className="text-3xl font-serif text-amber-400 italic">02</span>
+              <h3 className="text-lg font-bold">Baixe o Cliente</h3>
+              <p className="text-zinc-400 text-sm">Faça o download do instalador completo e atualize pelo launcher oficial do UPT.</p>
+              <Link href="/download" className="text-xs text-amber-400 hover:underline font-bold uppercase tracking-wider block pt-2">Baixar instalador →</Link>
+            </div>
+            <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-lg space-y-4">
+              <span className="text-3xl font-serif text-amber-400 italic">03</span>
+              <h3 className="text-lg font-bold">Jogue no Servidor</h3>
+              <p className="text-zinc-400 text-sm">Escolha sua tribo, selecione seu herói e inicie sua jornada lendária no Priston.</p>
+              <Link href="/suporte" className="text-xs text-amber-400 hover:underline font-bold uppercase tracking-wider block pt-2">Ver guias de ajuda →</Link>
+            </div>
+          </div>
         </div>
-      </footer>
-    </main>
+      </section>
+
+      {/* SEÇÃO 3: EVENTOS EM DESTAQUE */}
+      <section className="py-20 bg-zinc-950 border-b border-zinc-900">
+        <div className="max-w-6xl mx-auto px-6 space-y-12">
+          <div className="flex flex-wrap justify-between items-end gap-6">
+            <div>
+              <span className="text-xs uppercase tracking-widest text-amber-400 font-bold">Cronograma Semanal</span>
+              <h2 className="text-4xl font-serif mt-2">Eventos Ativos</h2>
+            </div>
+            <Link href="/eventos" className="text-sm text-amber-400 hover:underline font-bold uppercase">Ver Calendário Completo →</Link>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-lg flex flex-col justify-between min-h-[250px]">
+              <div>
+                <span className="text-xxs uppercase tracking-wider text-zinc-500 font-bold">Aventura Semanal</span>
+                <h3 className="text-xl font-bold mt-2">Bless Castle</h3>
+                <p className="text-zinc-400 text-sm mt-3">A maior batalha PvP de clãs pelo domínio do castelo clássico do Priston Tale.</p>
+              </div>
+              <span className="text-xxs bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 font-bold uppercase px-2 py-1 rounded inline-block self-start mt-4">Integrado</span>
+            </div>
+            <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-lg flex flex-col justify-between min-h-[250px]">
+              <div>
+                <span className="text-xxs uppercase tracking-wider text-zinc-500 font-bold">Evolução acelerada</span>
+                <h3 className="text-xl font-bold mt-2">XP Semanal Especial</h3>
+                <p className="text-zinc-400 text-sm mt-3">Taxas especiais aplicadas no servidor UPT em horários agendados.</p>
+              </div>
+              <span className="text-xxs bg-amber-500/15 border border-amber-500/20 text-amber-400 font-bold uppercase px-2 py-1 rounded inline-block self-start mt-4">Em breve</span>
+            </div>
+            <div className="p-6 bg-zinc-900/40 border border-zinc-800 rounded-lg flex flex-col justify-between min-h-[250px]">
+              <div>
+                <span className="text-xxs uppercase tracking-wider text-zinc-500 font-bold">Especial</span>
+                <h3 className="text-xl font-bold mt-2">Bellatra PVP</h3>
+                <p className="text-zinc-400 text-sm mt-3">Arena de sobrevivência em grupos com rankings atualizados no portal.</p>
+              </div>
+              <span className="text-xxs bg-zinc-800 border border-zinc-700 text-zinc-400 font-bold uppercase px-2 py-1 rounded inline-block self-start mt-4">Homologando</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* SEÇÃO 4: RANKINGS DO SERVIDOR */}
+      <section className="py-20 bg-zinc-900/20 border-b border-zinc-900">
+        <div className="max-w-4xl mx-auto px-6 space-y-12">
+          <div className="text-center">
+            <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Hall da Fama</span>
+            <h2 className="text-4xl font-serif mt-2">Rankings do Universo</h2>
+            <p className="text-zinc-400 text-sm mt-2">Top 5 heróis lendários em atividade no servidor UPT.</p>
+          </div>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+            <div className="p-4 bg-zinc-950 border-b border-zinc-850 grid grid-cols-4 text-xs font-bold uppercase tracking-wider text-zinc-400 text-center">
+              <span>Posição</span>
+              <span>Personagem</span>
+              <span>Classe</span>
+              <span>Nível</span>
+            </div>
+            <div className="divide-y divide-zinc-850/60 text-center text-sm">
+              <div className="p-4 grid grid-cols-4 items-center">
+                <span className="text-amber-400 font-serif italic text-lg">1º</span>
+                <strong className="text-cream">BetoDavi</strong>
+                <span className="text-zinc-400">Guerreiro</span>
+                <strong className="text-zinc-200">105</strong>
+              </div>
+              <div className="p-4 grid grid-cols-4 items-center">
+                <span className="text-zinc-400 font-serif italic text-lg">2º</span>
+                <strong className="text-cream">PristonHero</strong>
+                <span className="text-zinc-400">Mago</span>
+                <strong className="text-zinc-200">102</strong>
+              </div>
+              <div className="p-4 grid grid-cols-4 items-center">
+                <span className="text-zinc-400 font-serif italic text-lg">3º</span>
+                <strong className="text-cream">AngelPri</strong>
+                <span className="text-zinc-400">Atiradora</span>
+                <strong className="text-zinc-200">101</strong>
+              </div>
+              <div className="p-4 grid grid-cols-4 items-center">
+                <span className="text-zinc-500 font-serif text-base">4º</span>
+                <strong className="text-cream">TaleKnight</strong>
+                <span className="text-zinc-400">Cavaleiro</span>
+                <strong className="text-zinc-200">99</strong>
+              </div>
+              <div className="p-4 grid grid-cols-4 items-center">
+                <span className="text-zinc-500 font-serif text-base">5º</span>
+                <strong className="text-cream">LunaPri</strong>
+                <span className="text-zinc-400">Sacerdotisa</span>
+                <strong className="text-zinc-200">98</strong>
+              </div>
+            </div>
+          </div>
+          <div className="text-center">
+            <Link href="/rankings" className="text-xs text-amber-400 hover:underline font-bold uppercase tracking-widest">
+              Ver Classificação Completa →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Rodapé institucional */}
+      <PortalFooter />
+    </div>
   );
 }
