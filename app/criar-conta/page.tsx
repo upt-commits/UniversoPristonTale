@@ -90,6 +90,7 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(formData)
       });
       const data = await res.json();
@@ -112,7 +113,7 @@ export default function RegisterPage() {
             <span className="text-emerald-400 text-2xl">✓</span>
           </div>
           <h2 className="text-2xl font-black text-emerald-400 mb-4 tracking-wider">CONTA CRIADA!</h2>
-          <p className="text-zinc-400 mb-8 leading-relaxed">Sua conta do portal e do jogo foi registrada e vinculada com sucesso. Voce ja pode entrar no painel e no Game.exe.</p>
+          <p className="text-zinc-400 mb-8 leading-relaxed">Sua conta do portal e do jogo foi registrada e vinculada com sucesso. A verificacao de e-mail sera disponibilizada em breve. Voce ja pode entrar no painel e no Game.exe.</p>
           <Link href="/entrar" className="block w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-emerald-100 rounded font-bold uppercase tracking-wider text-sm transition">
             Acessar Painel
           </Link>

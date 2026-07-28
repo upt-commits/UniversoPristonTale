@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import apiRoutes from './routes';
 
@@ -30,6 +31,8 @@ app.use(cors({
   },
   credentials: true
 }));
+
+app.use(cookieParser());
 
 app.use(express.json({ limit: '10kb' })); // Proteção contra payloads excessivos
 
