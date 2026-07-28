@@ -10,17 +10,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchMe = async () => {
-      const token = localStorage.getItem('upt_session_token');
-      if (!token) {
-        setError('Sessao nao encontrada. Por favor, faca login.');
-        setLoading(false);
-        return;
-      }
-
       try {
         const res = await fetch('/api/player/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
+          credentials: 'include',
+          cache: 'no-store'
         });
+        if (res.status === 401) {
+          window.location.href = '/entrar';
+          return;
+        }
         const result = await res.json();
         if (res.ok) {
           setData(result);
@@ -37,8 +35,15 @@ export default function DashboardPage() {
     fetchMe();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('upt_session_token');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // proceed to redirect even if the call fails
+    }
     window.location.href = '/entrar';
   };
 
@@ -77,7 +82,6 @@ export default function DashboardPage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Dados da Conta */}
           <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Minha Conta</h2>
             <div className="space-y-2 text-sm">
@@ -87,7 +91,6 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* Dados Pessoais Mascarados */}
           <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Dados Pessoais</h2>
             {data?.profile ? (
@@ -101,7 +104,6 @@ export default function DashboardPage() {
             )}
           </section>
 
-          {/* Controles de Privacidade */}
           <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
             <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Seguranca & LGPD</h2>
             <div className="space-y-2 text-xs text-zinc-400">
@@ -112,7 +114,6 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        {/* Personagens Reais do Jogo */}
         <section className="bg-zinc-900 border border-zinc-850 rounded p-6 space-y-4">
           <h2 className="text-sm font-black uppercase tracking-widest text-zinc-300 border-b border-zinc-800 pb-2">Personagens no Servidor UPT</h2>
           {data?.characters && data.characters.length > 0 ? (

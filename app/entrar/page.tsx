@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
@@ -22,12 +23,12 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ username, password })
       });
       const data = await res.json();
-      if (res.ok && data.token) {
-        localStorage.setItem('upt_session_token', data.token);
-        window.location.href = '/painel';
+      if (res.ok && data.success) {
+        window.location.href = '/conta';
       } else {
         setError(data.error?.message || 'Usuario ou senha incorretos.');
       }
@@ -67,8 +68,8 @@ export default function LoginPage() {
         </form>
 
         <div className="flex justify-between text-xs text-zinc-400 pt-6 border-t border-zinc-800 mt-6">
-          <a href="/cadastro" className="hover:text-emerald-400">Criar uma conta</a>
-          <a href="/suporte" className="hover:text-emerald-400">Preciso de ajuda</a>
+          <Link href="/criar-conta" className="hover:text-emerald-400">Criar uma conta</Link>
+          <Link href="/suporte" className="hover:text-emerald-400">Preciso de ajuda</Link>
         </div>
       </div>
     </div>
