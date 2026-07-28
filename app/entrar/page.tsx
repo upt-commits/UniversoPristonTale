@@ -1,54 +1,76 @@
-import type { Metadata } from "next";
-import { IntegrationNotice, PortalPage } from "../portal-shell";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Entrar na conta · UPT",
-  description: "Acesso seguro à conta do Universo Priston Tale.",
-};
+import React, { useState } from 'react';
 
 export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username || !password) {
+      setError('Preencha todos os campos.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json() as any;
+      if (res.ok && data.token) {
+        localStorage.setItem('upt_session_token', data.token);
+        window.location.href = '/painel';
+      } else {
+        setError(data.error?.message || 'Usuario ou senha incorretos.');
+      }
+    } catch (err) {
+      setError('Falha ao comunicar com o servidor da API.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <PortalPage
-      eyebrow="ÁREA DO JOGADOR"
-      title="Entre no seu Universo."
-      description="O acesso será conectado ao Login Server por um gateway autenticado, sem expor o banco de dados do jogo à internet."
-    >
-      <div className="auth-layout">
-        <section className="auth-card" aria-labelledby="login-title">
-          <div className="card-heading">
-            <span>ACESSO SEGURO</span>
-            <h2 id="login-title">Minha conta</h2>
-            <p>Use somente o portal oficial para entrar.</p>
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
+      <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-lg p-8 shadow-2xl">
+        <div className="text-center mb-8">
+          <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Acesso Seguro</span>
+          <h1 className="text-2xl font-black uppercase tracking-wider mt-1">Minha Conta UPT</h1>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded text-sm font-semibold">
+            {error}
           </div>
-          <form className="auth-form">
-            <label htmlFor="account">Conta</label>
-            <input id="account" name="account" autoComplete="username" disabled />
-            <label htmlFor="password">Senha</label>
-            <input id="password" name="password" type="password" autoComplete="current-password" disabled />
-            <button type="button" disabled>Entrar</button>
-          </form>
-          <div className="auth-links">
-            <a href="/criar-conta">Criar uma conta</a>
-            <a href="/suporte">Preciso de ajuda</a>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-6">
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-zinc-400 font-bold mb-2">Nome da conta</label>
+            <input name="account" value={username} onChange={e => setUsername(e.target.value)} className="w-full bg-black border border-zinc-800 rounded px-4 py-3 focus:outline-none focus:border-emerald-500 text-zinc-200" required />
           </div>
-        </section>
-        <div className="auth-aside">
-          <IntegrationNotice title="Login ainda não ativado">
-            Nenhuma credencial digitada nesta versão será enviada ou armazenada. A abertura ocorrerá somente após o gateway da VM, sessão segura, limitação de tentativas e auditoria passarem nos testes.
-          </IntegrationNotice>
-          <ModuleCardList />
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-zinc-400 font-bold mb-2">Senha</label>
+            <input name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 rounded px-4 py-3 focus:outline-none focus:border-emerald-500 text-zinc-200" required />
+          </div>
+          <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-wider text-xs rounded transition shadow-lg shadow-emerald-500/10 disabled:opacity-50">
+            {loading ? 'Entrando...' : 'Entrar'}
+          </button>
+        </form>
+
+        <div className="flex justify-between text-xs text-zinc-400 pt-6 border-t border-zinc-800 mt-6">
+          <a href="/cadastro" className="hover:text-emerald-400">Criar uma conta</a>
+          <a href="/suporte" className="hover:text-emerald-400">Preciso de ajuda</a>
         </div>
       </div>
-    </PortalPage>
-  );
-}
-
-function ModuleCardList() {
-  return (
-    <div className="security-list">
-      <div><b>01</b><span>Banco SQL nunca acessado pelo navegador</span></div>
-      <div><b>02</b><span>Sessão protegida e expiração controlada</span></div>
-      <div><b>03</b><span>Logs sem senha, token ou dados desnecessários</span></div>
     </div>
   );
 }

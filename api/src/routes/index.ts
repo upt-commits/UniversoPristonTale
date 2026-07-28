@@ -407,12 +407,12 @@ router.get('/address/cep/:cep', async (req: Request, res: Response): Promise<voi
 });
 
 // Outros endpoints exigidos no contrato
-router.post('/auth/verify-email', (req, res) => res.json({ success: true }));
-router.post('/auth/forgot-password', (req, res) => res.json({ success: true }));
-router.post('/auth/reset-password', (req, res) => res.json({ success: true }));
-router.get('/legal/documents/current', (req, res) => res.json({ success: true }));
-router.patch('/player/me', requireAuth, (req, res) => res.json({ success: true }));
-router.get('/player/legal-acceptances', requireAuth, (req, res) => res.json({ success: true }));
-router.post('/auth/logout', requireAuth, (req, res) => res.json({ success: true }));
+router.post('/auth/verify-email', (req: Request, res: Response) => res.json({ success: true }));
+router.post('/auth/forgot-password', (req: Request, res: Response) => res.json({ success: true }));
+router.post('/auth/reset-password', (req: Request, res: Response) => res.json({ success: true }));
+router.get('/legal/documents/current', (req: Request, res: Response) => res.json({ success: true }));
+router.patch('/player/me', requireAuth, (req: Request, res: Response) => res.json({ success: true }));
+router.get('/player/legal-acceptances', requireAuth, (req: Request, res: Response) => res.json({ success: true }));
+router.post('/auth/logout', requireAuth, (req: Request, res: Response) => res.json({ success: true }));
 
 export default router;

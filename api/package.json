@@ -1,38 +1,36 @@
 {
-    "name":  "api",
-    "version":  "1.0.0",
-    "description":  "",
-    "scripts":  {
-                    "test":  "echo \"Error: no test specified\" \u0026\u0026 exit 1",
-                    "build":  "tsc -p tsconfig.json",
-                    "typecheck":  "tsc -p tsconfig.json --noEmit",
-                    "start":  "node dist/server.js",
-                    "dev":  "nodemon --exec ts-node src/server.ts"
-                },
-    "keywords":  [
-
-                 ],
-    "author":  "",
-    "license":  "ISC",
-    "type":  "commonjs",
-    "dependencies":  {
-                         "bcrypt":  "^6.0.0",
-                         "cors":  "^2.8.6",
-                         "dotenv":  "^17.4.2",
-                         "express":  "^5.2.1",
-                         "express-rate-limit":  "^8.6.1",
-                         "helmet":  "^8.3.0",
-                         "mssql":  "^12.7.0"
-                     },
-    "devDependencies":  {
-                            "@types/bcrypt":  "^6.0.0",
-                            "@types/cors":  "^2.8.19",
-                            "@types/express":  "^5.0.6",
-                            "@types/mssql":  "^12.3.0",
-                            "@types/node":  "^26.1.1",
-                            "nodemon":  "^3.1.14",
-                            "ts-node":  "^10.9.2",
-                            "typescript":  "^7.0.2"
-                        },
-    "main":  "dist/server.js"
+    "name": "api",
+    "version": "1.0.0",
+    "description": "",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "build": "tsc -p tsconfig.json",
+        "typecheck": "tsc -p tsconfig.json --noEmit",
+        "start": "node dist/server.js",
+        "dev": "nodemon --exec ts-node src/server.ts"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "bcrypt": "^6.0.0",
+        "cors": "^2.8.6",
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1",
+        "express-rate-limit": "^8.6.1",
+        "helmet": "^8.3.0",
+        "mssql": "^12.7.0"
+    },
+    "devDependencies": {
+        "@types/bcrypt": "^6.0.0",
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
+        "@types/mssql": "^12.3.0",
+        "@types/node": "^26.1.2",
+        "nodemon": "^3.1.14",
+        "ts-node": "^10.9.2",
+        "typescript": "^7.0.2"
+    },
+    "main": "dist/server.js"
 }
