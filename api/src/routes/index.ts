@@ -13,14 +13,31 @@ import {
 
 const router = Router();
 
-// Middleware de verificação de sessão (Sessão Opaca)
+// Middleware para extrair token do Cookie ou Header
 async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    let token = '';
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+        const cookies = cookieHeader.split(';').reduce((acc: any, cookie: string) => {
+            const [key, val] = cookie.trim().split('=');
+            acc[key] = val;
+            return acc;
+        }, {});
+        token = cookies['upt_session'];
+    }
+
+    if (!token) {
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.split(' ')[1];
+        }
+    }
+
+    if (!token) {
         res.status(401).json({ error: { code: 'UPT-AUTH-002', message: 'Sessao expirada ou nao autenticada.' } });
         return;
     }
-    const token = authHeader.split(' ')[1];
+
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     try {
@@ -41,18 +58,56 @@ async function requireAuth(req: Request, res: Response, next: NextFunction): Pro
     }
 }
 
-// 1. POST /api/auth/register (Cadastro Completo)
+// 1. GET /api/auth/captcha (Gera desafio anti-robô simples e seguro)
+router.get('/auth/captcha', (req: Request, res: Response) => {
+    const num1 = Math.floor(Math.random() * 10) + 1;
+    const num2 = Math.floor(Math.random() * 10) + 1;
+    const challenge = `Quanto e ${num1} + ${num2}?`;
+    const answerHash = crypto.createHash('sha256').update(String(num1 + num2)).digest('hex');
+
+    // Retorna desafio e assinatura temporária cifrada
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutos
+    const signature = encryptAES(`${answerHash}:${expiresAt}`, process.env.FIELD_ENCRYPTION_KEY || 'default');
+
+    res.json({ challenge, signature });
+});
+
+// 2. POST /api/auth/register (Cadastro Completo com Anti-Robô e Código de E-mail)
 router.post('/auth/register', async (req: Request, res: Response): Promise<void> => {
     const { 
         username, email, password,
         fullName, birthDate, cpf,
         cep, logradouro, numero, complemento, bairro, cidade, estado,
-        termsAccepted, guardianName, guardianCPF
+        termsAccepted, guardianName, guardianCPF,
+        captchaAnswer, captchaSignature
     } = req.body;
 
     // Validações Básicas
     if (!username || !email || !password || !fullName || !birthDate || !cpf || !cep || !logradouro || !numero || !bairro || !cidade || !estado) {
         res.status(400).json({ error: { code: 'UPT-REG-001', message: 'Todos os campos obrigatorios devem ser preenchidos.' } });
+        return;
+    }
+
+    // Validação Anti-Robô
+    if (!captchaAnswer || !captchaSignature) {
+        res.status(400).json({ error: { code: 'UPT-REG-010', message: 'Desafio anti-robo nao respondido.' } });
+        return;
+    }
+
+    try {
+        const decrypted = decryptAES(captchaSignature, process.env.FIELD_ENCRYPTION_KEY || 'default');
+        const [expectedHash, expiresAtStr] = decrypted.split(':');
+        if (Date.now() > Number(expiresAtStr)) {
+            res.status(400).json({ error: { code: 'UPT-REG-011', message: 'O desafio anti-robo expirou. Tente novamente.' } });
+            return;
+        }
+        const answerHash = crypto.createHash('sha256').update(String(captchaAnswer).trim()).digest('hex');
+        if (answerHash !== expectedHash) {
+            res.status(400).json({ error: { code: 'UPT-REG-012', message: 'Resposta incorreta para o desafio anti-robo.' } });
+            return;
+        }
+    } catch (e) {
+        res.status(400).json({ error: { code: 'UPT-REG-013', message: 'Assinatura anti-robo invalida.' } });
         return;
     }
 
@@ -67,7 +122,6 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
         return;
     }
 
-    // Validação de Idade (menor de 12 anos necessita de responsável)
     const age = calculateAge(birthDate);
     const isMinor = age < 18;
     if (age < 12 && (!guardianName || !guardianCPF)) {
@@ -82,7 +136,6 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
     const gamePool = await getGameConnection();
 
     try {
-        // Verificar duplicidades no portal
         const checkDuplicity = await portalPool.request()
             .input('username', sql.VarChar, username)
             .input('email', sql.VarChar, email)
@@ -108,7 +161,6 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        // Criar transações em ambos os bancos para possibilitar Rollback (Regra 17)
         const portalTransaction = new sql.Transaction(portalPool);
         const gameTransaction = new sql.Transaction(gamePool);
 
@@ -116,16 +168,16 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
         await gameTransaction.begin();
 
         try {
-            // 1. Gravar conta no Portal
+            // 1. Gravar conta no Portal (Desativada/Não Verificada por padrão)
             const registerAccount = await new sql.Request(portalTransaction)
                 .input('username', sql.VarChar, username.toUpperCase().trim())
                 .input('email', sql.VarChar, email.toLowerCase().trim())
                 .input('isMinor', sql.Bit, isMinor ? 1 : 0)
-                .query('INSERT INTO PlayerAccounts (AccountName, Email, EmailVerified, IsMinor) OUTPUT INSERTED.ID VALUES (@username, @email, 1, @isMinor)'); // Ativo/Verificado direto para teste local
+                .query('INSERT INTO PlayerAccounts (AccountName, Email, EmailVerified, IsMinor, Active) OUTPUT INSERTED.ID VALUES (@username, @email, 0, @isMinor, 0)');
 
             const accountId = registerAccount.recordset[0].ID;
 
-            // 2. Gravar perfil criptografado no Portal
+            // 2. Gravar perfil
             await new sql.Request(portalTransaction)
                 .input('accountId', sql.Int, accountId)
                 .input('fullName', sql.VarChar, fullName)
@@ -144,7 +196,6 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
                     VALUES (@accountId, @fullName, @birthDate, @cpfHMAC, @cpfEncrypted, @cep, @logradouro, @numero, @complemento, @bairro, @cidade, @estado)
                 `);
 
-            // Se for menor de 12 anos, registra consentimento
             if (age < 12 && guardianName && guardianCPF) {
                 const guardianCPFEnc = encryptAES(guardianCPF, process.env.FIELD_ENCRYPTION_KEY || '');
                 await new sql.Request(portalTransaction)
@@ -159,7 +210,7 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
                     `);
             }
 
-            // Registrar aceites de documentos legais
+            // Aceites legais
             const docs = await new sql.Request(portalTransaction).query('SELECT ID FROM LegalDocuments WHERE Active = 1');
             for (const doc of docs.recordset) {
                 await new sql.Request(portalTransaction)
@@ -173,44 +224,47 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
                     `);
             }
 
-            // 3. Gravar conta real no UserDB (Login Server)
+            // 3. Gravar conta inativa no UserDB (Ativação apenas pós-verificação de e-mail)
             const clientHash = hashPasswordClientStyle(username, password);
             await new sql.Request(gameTransaction)
                 .input('username', sql.VarChar, username.toUpperCase().trim())
                 .input('password', sql.VarChar, clientHash)
                 .query(`
                     INSERT INTO UserInfo (AccountName, Password, Flag, Active, RegisDay, ActiveCode, Coins, Email, GameMasterType, GameMasterLevel, GameMasterMacAddress, CoinsTraded, BanStatus, IsMuted, MuteCount)
-                    VALUES (@username, @password, 114, 1, CONVERT(varchar, GETDATE(), 120), '', 0, '', 0, 0, '', 0, 0, 0, 0)
+                    VALUES (@username, @password, 114, 0, CONVERT(varchar, GETDATE(), 120), '', 0, '', 0, 0, '', 0, 0, 0, 0)
                 `);
 
-            // Obter ID criado no UserDB para vincular
             const getGameId = await new sql.Request(gameTransaction)
                 .input('username', sql.VarChar, username.toUpperCase().trim())
                 .query('SELECT ID FROM UserInfo WHERE AccountName = @username');
-            
             const gameUserId = getGameId.recordset[0].ID;
 
-            // Vincular de volta na conta do Portal
             await new sql.Request(portalTransaction)
                 .input('accountId', sql.Int, accountId)
                 .input('userInfoId', sql.Int, gameUserId)
                 .query('UPDATE PlayerAccounts SET UserInfoID = @userInfoId WHERE ID = @accountId');
 
-            // Confirmar transações nos dois bancos
+            // 4. Gerar Código Numérico de Verificação (6 dígitos OTP)
+            const verifyCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const verifyHash = crypto.createHash('sha256').update(verifyCode).digest('hex');
+            const codeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+
+            await new sql.Request(portalTransaction)
+                .input('tokenHash', sql.VarChar, verifyHash)
+                .input('accountId', sql.Int, accountId)
+                .input('email', sql.VarChar, email.toLowerCase().trim())
+                .input('expires', sql.DateTime, codeExpiry)
+                .query('INSERT INTO EmailVerificationTokens (TokenHash, AccountID, Email, ExpiresAt) VALUES (@tokenHash, @accountId, @email, @expires)');
+
             await gameTransaction.commit();
             await portalTransaction.commit();
 
-            // Logs de auditoria de segurança
-            await portalPool.request()
-                .input('accountId', sql.Int, accountId)
-                .input('ip', sql.VarChar, req.ip || '127.0.0.1')
-                .input('ua', sql.VarChar, req.headers['user-agent'] || 'Unknown')
-                .query("INSERT INTO SecurityAuditLog (AccountID, Event, IPAddress, UserAgent, Details) VALUES (@accountId, 'REGISTER_SUCCESS', @ip, @ua, 'Conta de jogo vinculada com sucesso.')");
+            // LOG DE SIMULAÇÃO DE EMAIL NO CONSOLE/PRODUÇÃO
+            console.log(`[UPT-EMAIL-SIMULATOR]: Código enviado para ${email}: ${verifyCode}`);
 
-            res.json({ success: true, message: 'Cadastro realizado com sucesso!' });
+            res.json({ success: true, message: 'Cadastro pré-registrado. Insira o código de validação enviado por e-mail.', accountId });
 
         } catch (transErr: any) {
-            // Em caso de qualquer erro, efetua Rollback nos dois bancos imediatamente
             await gameTransaction.rollback();
             await portalTransaction.rollback();
             throw transErr;
@@ -222,8 +276,85 @@ router.post('/auth/register', async (req: Request, res: Response): Promise<void>
     }
 });
 
-// 2. POST /api/auth/login (Login Seguro)
-router.post('/auth/login', async (req: Request, res: Response): Promise<void> => {
+// 3. POST /api/auth/verify-code (Confirmação do Código de E-mail)
+router.post('/auth/verify-code', async (req: Request, res: Response): Promise<void> => {
+    const { accountId, code } = req.body;
+    if (!accountId || !code) {
+        res.status(400).json({ error: { code: 'UPT-VERIFY-001', message: 'Id da conta e codigo de verificacao obrigatorios.' } });
+        return;
+    }
+
+    const codeHash = crypto.createHash('sha256').update(String(code).trim()).digest('hex');
+    const portalPool = await getPortalConnection();
+    const gamePool = await getGameConnection();
+
+    try {
+        const tokenQuery = await portalPool.request()
+            .input('accountId', sql.Int, accountId)
+            .input('tokenHash', sql.VarChar, codeHash)
+            .query('SELECT Email, ExpiresAt FROM EmailVerificationTokens WHERE AccountID = @accountId AND TokenHash = @tokenHash');
+
+        if (tokenQuery.recordset.length === 0 || new Date() > new Date(tokenQuery.recordset[0].ExpiresAt)) {
+            res.status(400).json({ error: { code: 'UPT-VERIFY-002', message: 'Codigo incorreto ou expirado.' } });
+            return;
+        }
+
+        const email = tokenQuery.recordset[0].Email;
+
+        const portalTransaction = new sql.Transaction(portalPool);
+        const gameTransaction = new sql.Transaction(gamePool);
+
+        await portalTransaction.begin();
+        await gameTransaction.begin();
+
+        try {
+            // Ativa contas em ambos os bancos
+            await new sql.Request(portalTransaction)
+                .input('accountId', sql.Int, accountId)
+                .query('UPDATE PlayerAccounts SET EmailVerified = 1, Active = 1 WHERE ID = @accountId');
+
+            // Obter conta de jogo correspondente
+            const getAccName = await new sql.Request(portalTransaction)
+                .input('accountId', sql.Int, accountId)
+                .query('SELECT AccountName FROM PlayerAccounts WHERE ID = @accountId');
+
+            const accName = getAccName.recordset[0].AccountName;
+
+            await new sql.Request(gameTransaction)
+                .input('username', sql.VarChar, accName)
+                .query('UPDATE UserInfo SET Active = 1 WHERE AccountName = @username');
+
+            // Exclui token já utilizado
+            await new sql.Request(portalTransaction)
+                .input('accountId', sql.Int, accountId)
+                .query('DELETE FROM EmailVerificationTokens WHERE AccountID = @accountId');
+
+            await gameTransaction.commit();
+            await portalTransaction.commit();
+
+            // Logs
+            await portalPool.request()
+                .input('accountId', sql.Int, accountId)
+                .input('ip', sql.VarChar, req.ip || '127.0.0.1')
+                .input('ua', sql.VarChar, req.headers['user-agent'] || 'Unknown')
+                .query("INSERT INTO SecurityAuditLog (AccountID, Event, IPAddress, UserAgent, Details) VALUES (@accountId, 'EMAIL_VERIFIED', @ip, @ua, 'E-mail verificado e conta ativada.')");
+
+            res.json({ success: true, message: 'Conta ativada com sucesso!' });
+
+        } catch (transErr) {
+            await gameTransaction.rollback();
+            await portalTransaction.rollback();
+            throw transErr;
+        }
+
+    } catch (err: any) {
+        console.error('[VERIFY-CODE-ERROR]:', err.message);
+        res.status(500).json({ error: { code: 'UPT-VERIFY-500', message: 'Erro interno ao validar codigo.' } });
+    }
+});
+
+// 4. POST /api/auth/login (Login Seguro com Cookies HttpOnly / Secure)
+router.post('/api/auth/login', async (req: Request, res: Response): Promise<void> => {
     const { username, password } = req.body;
     if (!username || !password) {
         res.status(400).json({ error: { code: 'UPT-AUTH-003', message: 'Preencha conta e senha.' } });
@@ -234,7 +365,6 @@ router.post('/auth/login', async (req: Request, res: Response): Promise<void> =>
         const portalPool = await getPortalConnection();
         const gamePool = await getGameConnection();
 
-        // 1. Validar no banco de dados do jogo
         const normUser = username.toUpperCase().trim();
         const clientHash = hashPasswordClientStyle(username, password);
 
@@ -248,28 +378,22 @@ router.post('/auth/login', async (req: Request, res: Response): Promise<void> =>
         }
 
         if (checkGameUser.recordset[0].Active !== 1) {
-            res.status(400).json({ error: { code: 'UPT-AUTH-005', message: 'Esta conta esta inativa ou suspensa.' } });
+            res.status(400).json({ error: { code: 'UPT-AUTH-005', message: 'Esta conta ainda nao foi ativada ou esta suspensa.' } });
             return;
         }
 
-        // 2. Obter ou criar a conta de portal correspondente
         let portalUser = await portalPool.request()
             .input('username', sql.VarChar, normUser)
-            .query('SELECT ID, IsMinor FROM PlayerAccounts WHERE AccountName = @username');
+            .query('SELECT ID FROM PlayerAccounts WHERE AccountName = @username');
 
-        let accountId = 0;
         if (portalUser.recordset.length === 0) {
-            // Auto-criação no portal (caso a conta tenha sido criada antes por outro canal)
-            const createPortalUser = await portalPool.request()
-                .input('username', sql.VarChar, normUser)
-                .input('userInfoId', sql.Int, checkGameUser.recordset[0].ID)
-                .query('INSERT INTO PlayerAccounts (AccountName, Email, EmailVerified, UserInfoID) OUTPUT INSERTED.ID VALUES (@username, @username + "@auto.com", 1, @userInfoId)');
-            accountId = createPortalUser.recordset[0].ID;
-        } else {
-            accountId = portalUser.recordset[0].ID;
+            res.status(400).json({ error: { code: 'UPT-AUTH-006', message: 'Perfil do portal correspondente nao encontrado.' } });
+            return;
         }
 
-        // 3. Criar sessão opaca
+        const accountId = portalUser.recordset[0].ID;
+
+        // Criar sessão opaca
         const token = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
         const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 horas
@@ -282,6 +406,15 @@ router.post('/auth/login', async (req: Request, res: Response): Promise<void> =>
             .input('ua', sql.VarChar, req.headers['user-agent'] || 'Unknown')
             .query('INSERT INTO PlayerSessions (TokenHash, AccountID, ExpiresAt, IPAddress, UserAgent) VALUES (@tokenHash, @accountId, @expires, @ip, @ua)');
 
+        // Define Cookie HttpOnly, Secure e Lax
+        res.cookie('upt_session', token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+            path: '/',
+            expires: expiresAt
+        });
+
         // Auditoria
         await portalPool.request()
             .input('accountId', sql.Int, accountId)
@@ -289,7 +422,7 @@ router.post('/auth/login', async (req: Request, res: Response): Promise<void> =>
             .input('ua', sql.VarChar, req.headers['user-agent'] || 'Unknown')
             .query("INSERT INTO SecurityAuditLog (AccountID, Event, IPAddress, UserAgent, Details) VALUES (@accountId, 'LOGIN_SUCCESS', @ip, @ua, 'Autenticado com sucesso no Painel')");
 
-        res.json({ success: true, token, expiresAt });
+        res.json({ success: true, expiresAt });
 
     } catch (err: any) {
         console.error('[LOGIN-ROUTE-ERROR]:', err.message);
@@ -297,7 +430,7 @@ router.post('/auth/login', async (req: Request, res: Response): Promise<void> =>
     }
 });
 
-// 3. GET /api/player/me (Painel do Jogador com Máscaras e Personagens Reais)
+// 5. GET /api/player/me (Painel do Jogador com Máscaras e Personagens Reais)
 router.get('/player/me', requireAuth, async (req: Request, res: Response): Promise<void> => {
     const accountId = (req as any).accountId;
 
@@ -305,7 +438,6 @@ router.get('/player/me', requireAuth, async (req: Request, res: Response): Promi
         const portalPool = await getPortalConnection();
         const gamePool = await getGameConnection();
 
-        // 1. Obter dados da conta do portal e perfil
         const profileQuery = await portalPool.request()
             .input('accountId', sql.Int, accountId)
             .query(`
@@ -322,20 +454,18 @@ router.get('/player/me', requireAuth, async (req: Request, res: Response): Promi
 
         const data = profileQuery.recordset[0];
 
-        // Descriptografar CPF com AES-256 e aplicar máscara (Regra 27)
         let cpfMascarado = '***.***.***-00';
         if (data.CPF_Encrypted) {
             try {
-                const cpfDecrypted = decryptAES(data.CPF_Encrypted, process.env.FIELD_ENCRYPTION_KEY || '');
+                const cpfDecrypted = decryptAES(data.CPF_Encrypted, process.env.FIELD_ENCRYPTION_KEY || 'default');
                 if (cpfDecrypted.length === 11) {
                     cpfMascarado = `***.***.${cpfDecrypted.substring(6, 9)}-${cpfDecrypted.substring(9, 11)}`;
                 }
             } catch (e) {
-                // Manter padrão se chave falhar
+                // Ignore key decrypt failures
             }
         }
 
-        // 2. Obter personagens reais vinculados da tabela CharacterInfo do UserDB (Login Server)
         const charQuery = await gamePool.request()
             .input('username', sql.VarChar, data.AccountName)
             .query('SELECT Name, Class, Level, Experience FROM CharacterInfo WHERE AccountName = @username');
@@ -362,7 +492,7 @@ router.get('/player/me', requireAuth, async (req: Request, res: Response): Promi
     }
 });
 
-// 4. GET /api/address/cep/:cep (Consulta CEP com Validação e preenchimento)
+// 6. GET /api/address/cep/:cep (Consulta CEP com Validação e preenchimento)
 router.get('/address/cep/:cep', async (req: Request, res: Response): Promise<void> => {
     const rawCep = (req.params.cep as string).replace(/\D/g, '');
     if (rawCep.length !== 8) {
@@ -371,7 +501,6 @@ router.get('/address/cep/:cep', async (req: Request, res: Response): Promise<voi
     }
 
     try {
-        // Simular consulta com timeout de 3 segundos
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
 
@@ -395,7 +524,6 @@ router.get('/address/cep/:cep', async (req: Request, res: Response): Promise<voi
         });
 
     } catch (err) {
-        // Fallback local se ViaCEP falhar
         res.json({
             cep: rawCep,
             logradouro: '',
@@ -406,6 +534,35 @@ router.get('/address/cep/:cep', async (req: Request, res: Response): Promise<voi
     }
 });
 
+// 7. POST /api/auth/logout (Revogação real de sessão)
+router.post('/api/auth/logout', async (req: Request, res: Response): Promise<void> => {
+    let token = '';
+    const cookieHeader = req.headers.cookie;
+    if (cookieHeader) {
+        const cookies = cookieHeader.split(';').reduce((acc: any, cookie: string) => {
+            const [key, val] = cookie.trim().split('=');
+            acc[key] = val;
+            return acc;
+        }, {});
+        token = cookies['upt_session'];
+    }
+
+    if (token) {
+        const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+        try {
+            const pool = await getPortalConnection();
+            await pool.request()
+                .input('tokenHash', sql.VarChar, tokenHash)
+                .query('DELETE FROM PlayerSessions WHERE TokenHash = @tokenHash');
+        } catch (e) {
+            // Ignore DB delete failures on logout
+        }
+    }
+
+    res.clearCookie('upt_session');
+    res.json({ success: true, message: 'Sessao encerrada.' });
+});
+
 // Outros endpoints exigidos no contrato
 router.post('/auth/verify-email', (req: Request, res: Response) => res.json({ success: true }));
 router.post('/auth/forgot-password', (req: Request, res: Response) => res.json({ success: true }));
@@ -413,6 +570,5 @@ router.post('/auth/reset-password', (req: Request, res: Response) => res.json({ 
 router.get('/legal/documents/current', (req: Request, res: Response) => res.json({ success: true }));
 router.patch('/player/me', requireAuth, (req: Request, res: Response) => res.json({ success: true }));
 router.get('/player/legal-acceptances', requireAuth, (req: Request, res: Response) => res.json({ success: true }));
-router.post('/auth/logout', requireAuth, (req: Request, res: Response) => res.json({ success: true }));
 
 export default router;

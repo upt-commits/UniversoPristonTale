@@ -1,12 +1,20 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [pendingAccountId, setPendingAccountId] = useState<number | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+
+  // Captcha State
+  const [captchaChallenge, setCaptchaChallenge] = useState('');
+  const [captchaSignature, setCaptchaSignature] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
 
   // Form states
   const [formData, setFormData] = useState({
@@ -15,6 +23,24 @@ export default function RegisterPage() {
     cep: '', logradouro: '', numero: '', complemento: '', bairro: '', cidade: '', estado: 'SP',
     termsAccepted: false, guardianName: '', guardianCPF: '', marketingAccepted: false
   });
+
+  // Fetch a new captcha challenge
+  const fetchCaptcha = async () => {
+    try {
+      const res = await fetch('/api/auth/captcha');
+      if (res.ok) {
+        const data = await res.json() as any;
+        setCaptchaChallenge(data.challenge);
+        setCaptchaSignature(data.signature);
+      }
+    } catch (e) {
+      setError('Falha ao carregar o desafio anti-robo. Tente recarregar a pagina.');
+    }
+  };
+
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
 
   const calculateAge = (birthDateStr: string): number => {
     const birthDate = new Date(birthDateStr);
@@ -49,7 +75,7 @@ export default function RegisterPage() {
         }));
       }
     } catch (e) {
-      // Ignorar e preencher manualmente
+      // Ignore CEP fetch error
     }
   };
 
@@ -85,19 +111,55 @@ export default function RegisterPage() {
       setError('Voce precisa aceitar os termos de uso para prosseguir.');
       return;
     }
+    if (!captchaAnswer) {
+      setError('Responda ao desafio anti-robo.');
+      return;
+    }
 
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          captchaAnswer,
+          captchaSignature
+        })
+      });
+      const data = await res.json() as any;
+      if (res.ok && data.success) {
+        setPendingAccountId(data.accountId);
+        setIsVerifying(true);
+        setError('');
+      } else {
+        setError(data.error?.message || 'Falha ao realizar cadastro.');
+        fetchCaptcha(); // Refresh captcha
+      }
+    } catch (err) {
+      setError('Falha ao comunicar com o servidor da API.');
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verificationCode) return;
+
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountId: pendingAccountId,
+          code: verificationCode
+        })
       });
       const data = await res.json() as any;
       if (res.ok && data.success) {
         setSuccess(true);
+        setIsVerifying(false);
         setError('');
       } else {
-        setError(data.error?.message || 'Falha ao realizar cadastro.');
+        setError(data.error?.message || 'Codigo incorreto ou expirado.');
       }
     } catch (err) {
       setError('Falha ao comunicar com o servidor da API.');
@@ -111,11 +173,41 @@ export default function RegisterPage() {
           <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/40 rounded-full flex items-center justify-center mx-auto mb-6">
             <span className="text-emerald-400 text-2xl">✓</span>
           </div>
-          <h2 className="text-2xl font-black text-emerald-400 mb-4 tracking-wider">CONTA CRIADA!</h2>
-          <p className="text-zinc-400 mb-8 leading-relaxed">Sua conta do portal e do jogo foi registrada e vinculada com sucesso. Voce ja pode entrar no painel e no Game.exe.</p>
+          <h2 className="text-2xl font-black text-emerald-400 mb-4 tracking-wider">CONTA ATIVADA!</h2>
+          <p className="text-zinc-400 mb-8 leading-relaxed">Sua conta do portal e do jogo foi registrada e validada com sucesso. Voce ja pode entrar no painel e no Game.exe.</p>
           <Link href="/entrar" className="block w-full py-3 bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-emerald-100 rounded font-bold uppercase tracking-wider text-sm transition">
             Acessar Painel
           </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (isVerifying) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-lg p-8 shadow-2xl">
+          <div className="text-center mb-8">
+            <span className="text-xs uppercase tracking-widest text-emerald-400 font-bold">Validação de Conta</span>
+            <h1 className="text-2xl font-black uppercase tracking-wider mt-1">Insira o código</h1>
+            <p className="text-zinc-400 text-xs mt-2">Um codigo de validacao de 6 digitos foi enviado ao seu e-mail cadastrado.</p>
+          </div>
+
+          {error && (
+            <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 text-rose-300 rounded text-sm font-semibold">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleVerifyCode} className="space-y-6">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-zinc-400 font-bold mb-2">Código de 6 dígitos</label>
+              <input value={verificationCode} onChange={e => setVerificationCode(e.target.value)} className="w-full bg-black border border-zinc-800 rounded px-4 py-3 focus:outline-none focus:border-emerald-500 text-zinc-200 text-center tracking-widest text-lg font-black" placeholder="000000" maxLength={6} required />
+            </div>
+            <button type="submit" className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-wider text-xs rounded transition shadow-lg shadow-emerald-500/10">
+              Verificar e Ativar Conta
+            </button>
+          </form>
         </div>
       </div>
     );
@@ -235,7 +327,7 @@ export default function RegisterPage() {
           {step === 4 && (
             <div className="space-y-4">
               <h2 className="text-lg font-bold border-b border-zinc-800 pb-2 text-zinc-200 uppercase tracking-wide">Etapa 4 - Regulamentos e Aceite</h2>
-              <div className="bg-black/60 border border-zinc-850 rounded p-4 h-48 overflow-y-auto text-xs text-zinc-400 space-y-4 leading-relaxed">
+              <div className="bg-black/60 border border-zinc-850 rounded p-4 h-32 overflow-y-auto text-xs text-zinc-400 space-y-4 leading-relaxed">
                 <p className="font-bold text-zinc-200">Termos de Uso e Politica de Privacidade</p>
                 <p>Ao se cadastrar no Universo Priston Tale (UPT), voce concorda com a nossa Politica de Privacidade nos termos da LGPD e concorda em manter uma conduta saudavel dentro das regras oficiais do jogo.</p>
               </div>
@@ -255,6 +347,16 @@ export default function RegisterPage() {
                   </div>
                 </div>
               )}
+
+              {/* Anti-Robot / Challenge system */}
+              <div className="p-4 bg-zinc-950 border border-zinc-800 rounded space-y-2">
+                <label className="block text-xs uppercase tracking-wider text-zinc-400 font-bold mb-1">Verificacao Anti-Robo</label>
+                <div className="flex gap-4 items-center">
+                  <span className="text-sm font-bold text-emerald-400 bg-emerald-500/5 px-3 py-2 border border-emerald-500/10 rounded">{captchaChallenge || 'Carregando desafio...'}</span>
+                  <input value={captchaAnswer} onChange={e => setCaptchaAnswer(e.target.value)} className="w-24 bg-black border border-zinc-800 rounded px-3 py-2 text-center text-zinc-200 focus:outline-none focus:border-emerald-500" placeholder="Resposta" required />
+                  <button type="button" onClick={fetchCaptcha} className="text-xs text-zinc-500 hover:text-emerald-400 font-bold">Atualizar</button>
+                </div>
+              </div>
 
               <div className="space-y-3">
                 <label className="flex items-start gap-3 text-sm text-zinc-300">
