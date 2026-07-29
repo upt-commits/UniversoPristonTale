@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import cors from 'cors';
-import cookieParser from 'cookie-parser';
 import dotenv from 'dotenv';
 import apiRoutes from './routes';
+import adminRoutes from './admin';
 
 dotenv.config();
 
@@ -32,7 +32,18 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(cookieParser());
+app.use((req, _res, next) => {
+  const cookies: Record<string, string> = {};
+  for (const part of (req.headers.cookie || '').split(';')) {
+    const separator = part.indexOf('=');
+    if (separator < 1) continue;
+    const key = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
+    try { cookies[key] = decodeURIComponent(value); } catch { cookies[key] = value; }
+  }
+  (req as Request & { cookies: Record<string, string> }).cookies = cookies;
+  next();
+});
 
 app.use(express.json({ limit: '10kb' })); // Proteção contra payloads excessivos
 
@@ -46,6 +57,7 @@ app.use(limiter);
 
 // Rotas da API
 app.use('/api', apiRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'UPT API is secure and running!' });
