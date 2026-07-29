@@ -3,6 +3,7 @@ import sql from 'mssql';
 import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import { getPortalConnection, getGameConnection } from '../db';
+import { turnstileConfig, verifyTurnstile } from '../turnstile';
 import {
     computeCPF_HMAC,
     encryptAES,
@@ -83,8 +84,18 @@ const registerLimiter = rateLimit({
     message: { error: { code: 'UPT-RATE-003', message: 'Limite de cadastros atingido. Tente novamente mais tarde.' } }
 });
 
+router.get('/captcha/config', (_req, res) => {
+    const config = turnstileConfig();
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({ provider: 'turnstile', required: config.required, siteKey: config.siteKey });
+});
+
 // POST /api/auth/register
 router.post('/auth/register', registerLimiter, async (req: Request, res: Response): Promise<void> => {
+    if (!await verifyTurnstile(req, 'register')) {
+        res.status(400).json({ error: { code: 'UPT-CAPTCHA-001', message: 'Confirme a verificação de segurança e tente novamente.' } });
+        return;
+    }
     const {
         username, email, password,
         fullName, birthDate, cpf,
@@ -275,6 +286,10 @@ router.post('/auth/register', registerLimiter, async (req: Request, res: Respons
 
 // POST /api/auth/login
 router.post('/auth/login', authLimiter, async (req: Request, res: Response): Promise<void> => {
+    if (!await verifyTurnstile(req, 'player_login')) {
+        res.status(400).json({ error: { code: 'UPT-CAPTCHA-001', message: 'Confirme a verificação de segurança e tente novamente.' } });
+        return;
+    }
     const { username, password } = req.body;
     if (!username || !password) {
         res.status(400).json({ error: { code: 'UPT-AUTH-003', message: 'Preencha conta e senha.' } });
