@@ -10,7 +10,7 @@ import { Operation, PublicServerStatus, ReadinessCheck, ServerState, Telemetry }
 
 const execFileAsync = promisify(execFile);
 const intervalMs = boundedNumber('STATUS_COLLECT_INTERVAL_MS', 7_500, 5_000, 60_000);
-const dependencyTimeoutMs = boundedNumber('STATUS_DEPENDENCY_TIMEOUT_MS', 5_000, 250, 10_000);
+const dependencyTimeoutMs = boundedNumber('STATUS_DEPENDENCY_TIMEOUT_MS', 10_000, 250, 10_000);
 const maxAgeMs = boundedNumber('STATUS_MAX_AGE_MS', 45_000, 10_000, 300_000);
 const heartbeatMaxAgeMs = boundedNumber('STATUS_HEARTBEAT_MAX_AGE_MS', 30_000, 5_000, 300_000);
 const successThreshold = boundedNumber('STATUS_SUCCESS_THRESHOLD', 2, 1, 10);
@@ -27,6 +27,7 @@ let consecutiveHealthy = 0;
 let pendingFailure: ServerState | null = null;
 let consecutiveFailures = 0;
 const seenNonces = new Map<string, number>();
+const processCheckCache = new Map<string, { value: boolean; checkedAt: number }>();
 
 function boundedNumber(name: string, fallback: number, min: number, max: number): number {
   const parsed = Number(process.env[name]);
@@ -45,16 +46,27 @@ async function withTimeoutReject<T>(task: Promise<T>): Promise<T> {
     .finally(() => clearTimeout(handle!));
 }
 
-async function processMatches(expectedPath: string | undefined): Promise<boolean> {
+async function processMatches(expectedPath: string | undefined, port: number): Promise<boolean> {
   if (!expectedPath || process.platform !== 'win32') return false;
-  const escaped = expectedPath.replace(/'/g, "''");
   try {
-    const { stdout } = await execFileAsync('powershell.exe', [
-      '-NoProfile', '-NonInteractive', '-Command',
-      `$p='${escaped}'; [bool](Get-Process -Name Server -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $p } | Select-Object -First 1)`,
-    ], { timeout: dependencyTimeoutMs, windowsHide: true, maxBuffer: 4096 });
-    return stdout.trim().toLowerCase() === 'true';
-  } catch { return false; }
+    const { stdout: sockets } = await execFileAsync('netstat.exe', ['-ano', '-p', 'tcp'], {
+      timeout: dependencyTimeoutMs, windowsHide: true, maxBuffer: 1024 * 1024,
+    });
+    const listener = sockets.split(/\r?\n/).map((line) => line.trim().split(/\s+/))
+      .find((parts) => parts[0] === 'TCP' && parts[1]?.endsWith(`:${port}`) && parts[3] === 'LISTENING');
+    const pid = listener?.[4];
+    if (!pid || !/^\d+$/.test(pid)) return false;
+    const { stdout: tasks } = await execFileAsync('tasklist.exe', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
+      timeout: dependencyTimeoutMs, windowsHide: true, maxBuffer: 16 * 1024,
+    });
+    const actualName = tasks.trim().split(',')[0]?.replace(/^"|"$/g, '').toLowerCase();
+    const value = actualName === path.basename(expectedPath).toLowerCase();
+    processCheckCache.set(expectedPath, { value, checkedAt: Date.now() });
+    return value;
+  } catch {
+    const cached = processCheckCache.get(expectedPath);
+    return cached?.value === true && Date.now() - cached.checkedAt <= maxAgeMs;
+  }
 }
 
 function socketReady(host: string, port: number): Promise<boolean> {
@@ -76,7 +88,7 @@ async function heartbeatReady(logPath: string | undefined): Promise<boolean> {
 
 async function serverCheck(exe: string | undefined, log: string | undefined, host: string, port: number): Promise<ReadinessCheck> {
   const [processOk, socketOk, heartbeatOk] = await Promise.all([
-    withTimeout(processMatches(exe), false), withTimeout(socketReady(host, port), false), withTimeout(heartbeatReady(log), false),
+    withTimeout(processMatches(exe, port), false), withTimeout(socketReady(host, port), false), withTimeout(heartbeatReady(log), false),
   ]);
   return { process: processOk, socket: socketOk, heartbeat: heartbeatOk, ready: processOk && socketOk && heartbeatOk };
 }
