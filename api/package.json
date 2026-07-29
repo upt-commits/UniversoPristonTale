@@ -4,6 +4,8 @@
     "description": "",
     "scripts": {
         "test": "tsc -p tsconfig.json && node dist/tests/auth.test.js",
+        "test:security": "tsc -p tsconfig.json && node dist/tests/security.test.js",
+        "test:all": "tsc -p tsconfig.json && node dist/tests/auth.test.js && node dist/tests/security.test.js",
         "test:integration": "node --test tests/integration.test.mjs",
         "build": "tsc -p tsconfig.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",
