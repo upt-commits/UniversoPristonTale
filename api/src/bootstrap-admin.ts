@@ -52,7 +52,7 @@ async function main() {
   await portal.request()
     .input('username', sql.VarChar, username)
     .input('passwordHash', sql.VarChar, passwordHash)
-    .query("INSERT AdminUsers(Username,PasswordHash,Role) VALUES(@username,@passwordHash,'SUPER_ADMIN')");
+    .query("INSERT AdminUsers(Username,PasswordHash,Role,ForcePasswordChange) VALUES(@username,@passwordHash,'SUPER_ADMIN',1)");
   await portal.request()
     .input('action', sql.VarChar, 'ADMIN_BOOTSTRAP')
     .input('target', sql.VarChar, username)
