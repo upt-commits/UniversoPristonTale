@@ -2,11 +2,13 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Turnstile from '@/components/Turnstile';
 
 export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   // Form states
   const [formData, setFormData] = useState({
@@ -91,7 +93,7 @@ export default function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, captchaToken })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -267,6 +269,7 @@ export default function RegisterPage() {
                   <span>Aceito receber e-mails informativos, atualizacoes e novidades do servidor (Opcional).</span>
                 </label>
               </div>
+              <Turnstile action="register" onToken={setCaptchaToken} />
             </div>
           )}
 

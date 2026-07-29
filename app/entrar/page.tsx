@@ -2,12 +2,14 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Turnstile from '@/components/Turnstile';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +26,7 @@ export default function LoginPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, captchaToken })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -62,6 +64,7 @@ export default function LoginPage() {
             <label className="block text-xs uppercase tracking-wider text-zinc-400 font-bold mb-2">Senha</label>
             <input name="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-black border border-zinc-800 rounded px-4 py-3 focus:outline-none focus:border-emerald-500 text-zinc-200" required />
           </div>
+          <Turnstile action="player_login" onToken={setCaptchaToken} />
           <button type="submit" disabled={loading} className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-black uppercase tracking-wider text-xs rounded transition shadow-lg shadow-emerald-500/10 disabled:opacity-50">
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
