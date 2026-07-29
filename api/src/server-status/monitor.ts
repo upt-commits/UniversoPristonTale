@@ -10,7 +10,7 @@ import { Operation, PublicServerStatus, ReadinessCheck, ServerState, Telemetry }
 
 const execFileAsync = promisify(execFile);
 const intervalMs = boundedNumber('STATUS_COLLECT_INTERVAL_MS', 7_500, 5_000, 60_000);
-const dependencyTimeoutMs = boundedNumber('STATUS_DEPENDENCY_TIMEOUT_MS', 1_500, 250, 10_000);
+const dependencyTimeoutMs = boundedNumber('STATUS_DEPENDENCY_TIMEOUT_MS', 5_000, 250, 10_000);
 const maxAgeMs = boundedNumber('STATUS_MAX_AGE_MS', 45_000, 10_000, 300_000);
 const heartbeatMaxAgeMs = boundedNumber('STATUS_HEARTBEAT_MAX_AGE_MS', 30_000, 5_000, 300_000);
 const successThreshold = boundedNumber('STATUS_SUCCESS_THRESHOLD', 2, 1, 10);
