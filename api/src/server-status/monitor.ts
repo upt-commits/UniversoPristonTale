@@ -14,6 +14,7 @@ const dependencyTimeoutMs = boundedNumber('STATUS_DEPENDENCY_TIMEOUT_MS', 1_500,
 const maxAgeMs = boundedNumber('STATUS_MAX_AGE_MS', 45_000, 10_000, 300_000);
 const heartbeatMaxAgeMs = boundedNumber('STATUS_HEARTBEAT_MAX_AGE_MS', 30_000, 5_000, 300_000);
 const successThreshold = boundedNumber('STATUS_SUCCESS_THRESHOLD', 2, 1, 10);
+const failureThreshold = boundedNumber('STATUS_FAILURE_THRESHOLD', 2, 1, 10);
 const stateFile = process.env.STATUS_STATE_FILE || path.join(process.cwd(), 'data', 'server-status-state.json');
 
 let timer: NodeJS.Timeout | null = null;
@@ -23,6 +24,8 @@ let publicStatus: PublicServerStatus = makePublic('unknown', new Date().toISOStr
 let lastState: ServerState = 'unknown';
 let lastStateChangeAt = publicStatus.lastStateChangeAt;
 let consecutiveHealthy = 0;
+let pendingFailure: ServerState | null = null;
+let consecutiveFailures = 0;
 const seenNonces = new Map<string, number>();
 
 function boundedNumber(name: string, fallback: number, min: number, max: number): number {
@@ -48,7 +51,7 @@ async function processMatches(expectedPath: string | undefined): Promise<boolean
   try {
     const { stdout } = await execFileAsync('powershell.exe', [
       '-NoProfile', '-NonInteractive', '-Command',
-      `$p='${escaped}'; [bool](Get-CimInstance Win32_Process -Filter \"Name='Server.exe'\" | Where-Object { $_.ExecutablePath -eq $p } | Select-Object -First 1)`,
+      `$p='${escaped}'; [bool](Get-Process -Name Server -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $p } | Select-Object -First 1)`,
     ], { timeout: dependencyTimeoutMs, windowsHide: true, maxBuffer: 4096 });
     return stdout.trim().toLowerCase() === 'true';
   } catch { return false; }
@@ -141,7 +144,16 @@ export async function collectNow(): Promise<void> {
     if (next === 'online') {
       consecutiveHealthy += 1;
       if (consecutiveHealthy < successThreshold && lastState !== 'online') next = 'partial';
-    } else consecutiveHealthy = 0;
+      pendingFailure = null; consecutiveFailures = 0;
+    } else {
+      consecutiveHealthy = 0;
+      const criticalCoreFailure = next === 'offline' && !login.process && !game.process && !login.socket && !game.socket;
+      if (lastState === 'online' && !criticalCoreFailure) {
+        if (pendingFailure === next) consecutiveFailures += 1;
+        else { pendingFailure = next; consecutiveFailures = 1; }
+        if (consecutiveFailures < failureThreshold) next = lastState;
+      }
+    }
     if (next !== lastState) {
       lastState = next;
       lastStateChangeAt = checkedAt;
