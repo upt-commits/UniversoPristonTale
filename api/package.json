@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "description": "",
     "scripts": {
-        "test": "tsc -p tsconfig.json && node dist/tests/auth.test.js",
+        "test": "tsc -p tsconfig.json && node --test dist/tests/*.test.js",
         "test:integration": "node --test tests/integration.test.mjs",
         "build": "tsc -p tsconfig.json",
         "typecheck": "tsc -p tsconfig.json --noEmit",

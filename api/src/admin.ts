@@ -7,14 +7,15 @@ import rateLimit from 'express-rate-limit';
 import { getPortalConnection, getGameConnection } from './db';
 import { encryptAES, decryptAES } from './utils/crypto';
 import { verifyTurnstile } from './turnstile';
+import { setMaintenance } from './server-status/monitor';
 
 const router = Router();
 const COOKIE = 'upt_admin_sid';
 const PRE_COOKIE = 'upt_admin_pre';
 const TTL = 30 * 60 * 1000;
 const ROLE_PERMISSIONS: Record<string,string[]> = {
-  SUPER_ADMIN:['players.read','characters.read','server.read','audit.read','admins.manage','backups.create','backups.restore'],
-  ADMIN:['players.read','characters.read','server.read','audit.read'], GM:['players.read','characters.read','server.read'],
+  SUPER_ADMIN:['players.read','characters.read','server.read','server.maintenance','audit.read','admins.manage','backups.create','backups.restore'],
+  ADMIN:['players.read','characters.read','server.read','server.maintenance','audit.read'], GM:['players.read','characters.read','server.read'],
   SUPORTE:['players.read','characters.read'], FINANCEIRO:[], CONTEUDO:['server.read'], AUDITOR:['server.read','audit.read']
 };
 type AdminRequest = Request & { admin?: { id:number; username:string; role:string; permissions:string[] } };
@@ -37,5 +38,6 @@ router.post('/mfa/verify',limiter,async(req,res)=>{const raw=req.cookies?.[PRE_C
 router.post('/logout',requireAdmin,async(req:AdminRequest,res)=>{const raw=req.cookies?.[COOKIE];const p=await getPortalConnection();await p.request().input('h',sql.Char,hash(raw)).query('UPDATE AdminSessions SET RevokedAt=SYSUTCDATETIME() WHERE TokenHash=@h');res.clearCookie(COOKIE,cookieOptions);await audit(req.admin!.id,'ADMIN_LOGOUT','SUCCESS',req);res.json({success:true});});
 function portOpen(port:number){return new Promise<boolean>(resolve=>{const s=net.createConnection({host:'127.0.0.1',port,timeout:1200},()=>{s.destroy();resolve(true)});s.on('error',()=>resolve(false));s.on('timeout',()=>{s.destroy();resolve(false)});});}
 router.get('/status',requireAdmin,permit('server.read'),async(_req,res)=>{let portalDb=false,gameDb=false;try{await(await getPortalConnection()).request().query('SELECT 1');portalDb=true}catch{}try{await(await getGameConnection()).request().query('SELECT 1');gameDb=true}catch{}res.json({portal:'Online',api:'Online',portalDatabase:portalDb?'Online':'Offline',gameDatabase:gameDb?'Online':'Offline',loginServer:(await portOpen(10009))?'Online':'Offline',gameServer:(await portOpen(30010))?'Online':'Offline',updatedAt:new Date().toISOString()});});
+router.post('/maintenance',requireAdmin,permit('server.maintenance'),async(req:AdminRequest,res)=>{const active=req.body?.active;if(typeof active!=='boolean')return res.status(400).json({error:{code:'UPT-ADM-VALIDATION',message:'Estado de manutenção inválido.'}});await setMaintenance(active,{title:String(req.body?.title||''),message:String(req.body?.message||''),expectedEndAt:req.body?.expectedEndAt});await audit(req.admin!.id,active?'MAINTENANCE_ENABLED':'MAINTENANCE_DISABLED','SUCCESS',req);res.json({success:true});});
 router.post('/server/broadcast',requireAdmin,permit('server.broadcast'),(_req,res)=>res.status(501).json({error:{code:'UPT-ADM-NYI',message:'Operação indisponível: canal administrativo autenticado não encontrado.'}}));
 export default router;

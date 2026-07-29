@@ -1,47 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
 import { PortalHeader, PortalFooter } from "./portal-shell";
+import { ServerStatusCard } from "../components/ServerStatusCard";
 
 export default function Home() {
-  const [serverStatus, setServerStatus] = useState("Carregando...");
-  const [onlineCount, setOnlineCount] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch("/api/health");
-        if (res.ok) {
-          const data = await res.json() as any;
-          if (data.status?.includes("secure")) {
-            setServerStatus("Online");
-          } else {
-            setServerStatus("Manutenção");
-          }
-        } else {
-          setServerStatus("Manutenção");
-        }
-      } catch (e) {
-        setServerStatus("Offline");
-      }
-    };
-    fetchStatus();
-  }, []);
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
       {/* 1. Barra superior de ações rápidas */}
       <div className="bg-zinc-900 border-b border-zinc-800 text-xs py-2 px-6 flex flex-wrap justify-between items-center gap-4">
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full inline-block ${serverStatus === "Online" ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`} />
-            <span className="font-bold text-zinc-300">Servidor: {serverStatus}</span>
-          </div>
-          <span className="text-zinc-600">|</span>
           <span className="text-zinc-400">Versão: 1.0.0 Stable</span>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
           <Link href="/criar-conta" className="text-emerald-400 hover:text-emerald-300 font-extrabold tracking-wider uppercase">
             Criar Conta Grátis
           </Link>
@@ -71,7 +43,8 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('/upt-hero.webp')] bg-cover bg-center opacity-30 mix-blend-luminosity" />
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-transparent" />
         
-        <div className="relative max-w-4xl mx-auto text-center px-6 z-10 space-y-6">
+        <div className="relative w-full max-w-6xl mx-auto px-6 z-10 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] items-center gap-12">
+          <div className="text-center lg:text-left space-y-6">
           <span className="text-xs uppercase tracking-widest text-amber-400 font-extrabold bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded">
             MMORPG Clássico Brasileiro
           </span>
@@ -90,7 +63,7 @@ export default function Home() {
               Baixar o Jogo
             </Link>
           </div>
-          <div className="grid grid-cols-3 gap-6 max-w-md mx-auto pt-8 border-t border-zinc-900/60 text-center">
+          <div className="grid grid-cols-3 gap-6 max-w-md mx-auto lg:mx-0 pt-8 border-t border-zinc-900/60 text-center">
             <div>
               <span className="block text-zinc-500 text-xxs uppercase font-bold tracking-widest">Nível Máximo</span>
               <strong className="text-lg text-zinc-300">199</strong>
@@ -104,6 +77,8 @@ export default function Home() {
               <strong className="text-lg text-zinc-300">Gratuito</strong>
             </div>
           </div>
+          </div>
+          <ServerStatusCard />
         </div>
       </section>
 

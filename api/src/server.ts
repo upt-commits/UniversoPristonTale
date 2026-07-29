@@ -5,6 +5,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes';
 import adminRoutes from './admin';
+import statusRoutes from './server-status/routes';
+import { startStatusMonitor } from './server-status/monitor';
 
 dotenv.config();
 
@@ -58,6 +60,7 @@ app.use(limiter);
 // Rotas da API
 app.use('/api', apiRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/internal', statusRoutes);
 
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'UPT API is secure and running!' });
@@ -80,5 +83,6 @@ app.use((err: any, req: Request, res: Response, next: any) => {
 });
 
 app.listen(port, () => {
+  startStatusMonitor();
   console.log(`[UPT-API]: Servidor seguro rodando na porta ${port}`);
 });

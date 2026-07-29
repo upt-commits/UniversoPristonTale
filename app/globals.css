@@ -95,7 +95,7 @@ img { display: block; max-width: 100%; }
 .button-secondary:hover, .button-secondary:focus-visible { border-color: var(--gold); color: var(--gold-bright); }
 .hero-note { margin: 17px 0 0; color: #858b8f; font-size: 11px; letter-spacing: .06em; }
 
-.server-panel { align-self: end; margin-bottom: 60px; border: 1px solid rgba(224,194,128,.22); background: linear-gradient(145deg, rgba(16,20,24,.84), rgba(7,9,11,.92)); backdrop-filter: blur(15px); box-shadow: 0 26px 70px rgba(0,0,0,.42); }
+.server-panel { width: 100%; border: 1px solid rgba(224,194,128,.22); background: linear-gradient(145deg, rgba(16,20,24,.84), rgba(7,9,11,.92)); backdrop-filter: blur(15px); box-shadow: 0 26px 70px rgba(0,0,0,.42); }
 .panel-heading { display: flex; justify-content: space-between; gap: 16px; padding: 20px 20px 18px; border-bottom: 1px solid rgba(255,255,255,.07); }
 .panel-heading div { display: flex; flex-direction: column; gap: 5px; }
 .panel-heading div span, .panel-footer span, .server-stats span { color: #777f85; font-size: 9px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
@@ -108,6 +108,18 @@ img { display: block; max-width: 100%; }
 .server-stats strong { color: #dfe1df; font-size: 12px; }
 .panel-footer { display: flex; justify-content: space-between; gap: 12px; padding: 13px 20px; border-top: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.018); }
 .panel-footer strong { color: #aeb1b1; font-size: 9px; font-weight: 650; }
+.status-message { min-height: 42px; margin: 0; padding: 0 20px 14px; color: #aeb1b1; font-size: 11px; line-height: 1.55; }
+.status-online .status-badge { color: #9ee5ad; border-color: rgba(74,222,128,.28); background: rgba(34,197,94,.09); }
+.status-online .status-badge i { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+.status-offline .status-badge { color: #fca5a5; border-color: rgba(248,113,113,.28); background: rgba(239,68,68,.09); }
+.status-offline .status-badge i { background: #f87171; box-shadow: 0 0 8px #f87171; }
+.status-partial .status-badge { color: #fdba74; }
+.status-degraded .status-badge { color: #fde68a; }
+.status-maintenance .status-badge { color: #93c5fd; border-color: rgba(96,165,250,.28); background: rgba(59,130,246,.09); }
+.status-unknown .status-badge { color: #cbd5e1; border-color: rgba(148,163,184,.25); background: rgba(100,116,139,.09); }
+.status-unknown .status-badge i { background: #94a3b8; box-shadow: none; }
+.status-starting .status-badge i, .status-restarting .status-badge i, .status-loading i { animation: statusPulse 1.6s ease-in-out infinite; }
+@keyframes statusPulse { 50% { opacity: .35; transform: scale(.8); } }
 .hero-scroll { position: absolute; left: 50%; bottom: 24px; display: flex; align-items: center; gap: 10px; transform: translateX(-50%); color: #6f767a; font-size: 8px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
 .hero-scroll span { width: 28px; height: 1px; background: #6f767a; }
 
@@ -298,6 +310,7 @@ img { display: block; max-width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .status-starting .status-badge i, .status-restarting .status-badge i, .status-loading i { animation: none; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
