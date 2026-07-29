@@ -10,6 +10,7 @@ IF OBJECT_ID('dbo.AdminUsers','U') IS NULL CREATE TABLE dbo.AdminUsers (
   MfaEnabled bit NOT NULL CONSTRAINT DF_AdminUsers_MfaEnabled DEFAULT 0,
   FailedAttempts int NOT NULL CONSTRAINT DF_AdminUsers_FailedAttempts DEFAULT 0,
   LockedUntil datetime2 NULL,
+  ForcePasswordChange bit NOT NULL CONSTRAINT DF_AdminUsers_ForcePwdChange DEFAULT 1,
   Active bit NOT NULL CONSTRAINT DF_AdminUsers_Active DEFAULT 1,
   CreatedAt datetime2 NOT NULL CONSTRAINT DF_AdminUsers_CreatedAt DEFAULT SYSUTCDATETIME(),
   PasswordChangedAt datetime2 NOT NULL CONSTRAINT DF_AdminUsers_PasswordChangedAt DEFAULT SYSUTCDATETIME()
